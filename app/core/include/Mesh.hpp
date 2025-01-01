@@ -11,10 +11,9 @@ public:
     Mesh(const std::filesystem::path& filename);
     ~Mesh();
 
-    std::vector<glm::vec3> GetVertecies();
-    std::vector<glm::uvec3> GetIndecies();
-
+    // using vec4 because glsl alligns vec3 to 16 bytes so for increased memmory usage it makes it faster and more convinient for me :)
+    std::vector<glm::vec4> m_vertecies; 
+    std::vector<glm::vec4> m_normals;
+    std::vector<glm::uvec4> m_triangle_indecies;
 private:
-    std::vector<glm::vec3> m_vertecies;
-    std::vector<glm::uvec3> m_triangle_indecies;
 };

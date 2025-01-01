@@ -1,8 +1,8 @@
 #include "Buffer.hpp"
 
-Buffer::Buffer(GLsizeiptr size, const void* data, GLbitfield flags) {
+Buffer::Buffer(GLsizeiptr size, const void* data) {
     glCreateBuffers(1, &m_buffer_id);
-    glNamedBufferStorage(m_buffer_id, size, data, flags);
+    glNamedBufferStorage(m_buffer_id, size, data, 0);
 }
 
 Buffer::~Buffer() {

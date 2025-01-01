@@ -14,6 +14,7 @@ Mesh::Mesh(const std::filesystem::path& filename) {
         if (!reader.Error().empty()) {
             SDL_LogError(SDL_LOG_CATEGORY_ERROR, "[Mesh] TinyObjReader loading error: %s", reader.Error().c_str());
         }
+        exit(1);
         return;
     }
 
@@ -24,12 +25,22 @@ Mesh::Mesh(const std::filesystem::path& filename) {
     const tinyobj::attrib_t& attrib = reader.GetAttrib();
     const std::vector<tinyobj::shape_t>& shapes = reader.GetShapes();
 
+    if (attrib.vertices.size() != attrib.normals.size()) {
+        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "[Mesh] error: obj file doesn't contain vertex normals");
+        exit(1);
+    }
+
     for (size_t i = 0; i < attrib.vertices.size(); i += 3) {
         GLfloat x = static_cast<GLfloat>(attrib.vertices[i + 0]);
         GLfloat y = static_cast<GLfloat>(attrib.vertices[i + 1]);
         GLfloat z = static_cast<GLfloat>(attrib.vertices[i + 2]);
 
-        m_vertecies.push_back(glm::vec3{x, y, z});
+        GLfloat nx = static_cast<GLfloat>(attrib.normals[i + 0]);
+        GLfloat ny = static_cast<GLfloat>(attrib.normals[i + 1]);
+        GLfloat nz = static_cast<GLfloat>(attrib.normals[i + 2]);
+
+        m_vertecies.push_back(glm::vec4{x, y, z, 0.0});
+        m_normals.push_back(glm::vec4{nx, ny, nz, 0});
     }
 
     for (const tinyobj::shape_t& shape : shapes) {
@@ -39,13 +50,26 @@ Mesh::Mesh(const std::filesystem::path& filename) {
             if (fv != 3) {
                 SDL_LogError(SDL_LOG_CATEGORY_ERROR, "[Mesh] error, only triangle faces are supported");    // tinyobjloader supposedly automatically converts all polygons to triangles if not specified otherwise
                 return;
+                exit(1);
             }
 
-            GLuint index_1 = static_cast<GLuint>(shape.mesh.indices[i + 0].vertex_index);
-            GLuint index_2 = static_cast<GLuint>(shape.mesh.indices[i + 1].vertex_index);
-            GLuint index_3 = static_cast<GLuint>(shape.mesh.indices[i + 2].vertex_index);
+            tinyobj::index_t i_1 = shape.mesh.indices[i + 0];
+            tinyobj::index_t i_2 = shape.mesh.indices[i + 1];
+            tinyobj::index_t i_3 = shape.mesh.indices[i + 2];
 
-            m_triangle_indecies.push_back(glm::uvec3(index_1, index_2, index_3));
+            if (i_1.vertex_index != i_1.normal_index
+             || i_2.vertex_index != i_2.normal_index
+             || i_3.vertex_index != i_3.normal_index) {
+                SDL_LogError(SDL_LOG_CATEGORY_ERROR, "[Mesh] error: different indecies for vertecies and normals are not supported");
+                exit(1);
+                return;
+            }
+
+            GLuint index_1 = static_cast<GLuint>(i_1.vertex_index);
+            GLuint index_2 = static_cast<GLuint>(i_2.vertex_index);
+            GLuint index_3 = static_cast<GLuint>(i_3.vertex_index);
+
+            m_triangle_indecies.push_back(glm::uvec4(index_1, index_2, index_3, 0));
 
             i += 3;
         }
@@ -53,11 +77,3 @@ Mesh::Mesh(const std::filesystem::path& filename) {
 }
 
 Mesh::~Mesh() {}
-
-std::vector<glm::vec3> Mesh::GetVertecies() {
-    return m_vertecies;
-}
-
-std::vector<glm::uvec3> Mesh::GetIndecies() {
-    return m_triangle_indecies;
-}

@@ -47,8 +47,12 @@ private:
 
     Mesh m_mesh;
 
+    Buffer m_vertecies_buffer;
+    Buffer m_normal_buffer;
+    Buffer m_indecies_buffer;
+
     Skybox m_skybox;
-    GLuint emptyVAO; 
+    GLuint m_empty_vao; 
 
     float m_time_in_seconds;
 };

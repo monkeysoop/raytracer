@@ -13,9 +13,12 @@ App::App(GLsizei width, GLsizei height) :
     m_camera_manipulator{}, 
     //m_framebuffer{width, height}, 
     m_ray_tracer_shader{"assets/ray_tracer.vert", "assets/ray_tracer.frag"},
-    //m_mesh{"assets/suzanne.obj"},
-    m_mesh{"assets/stanford_bunny.obj"},
+    m_mesh{"assets/suzanne.obj"},
+    //m_mesh{"assets/stanford_bunny.obj"},
     //m_mesh{"assets/xyzrgb_dragon.obj"},
+    m_vertecies_buffer{static_cast<GLsizeiptr>(m_mesh.m_vertecies.size() * sizeof(decltype(m_mesh.m_vertecies)::value_type)), m_mesh.m_vertecies.data()},
+    m_normal_buffer{static_cast<GLsizeiptr>(m_mesh.m_normals.size() * sizeof(decltype(m_mesh.m_normals)::value_type)), m_mesh.m_normals.data()},
+    m_indecies_buffer{static_cast<GLsizeiptr>(m_mesh.m_triangle_indecies.size() * sizeof(decltype(m_mesh.m_triangle_indecies)::value_type)), m_mesh.m_triangle_indecies.data()},
     m_skybox{},
     m_time_in_seconds{0.0f}
 {
@@ -29,7 +32,7 @@ App::App(GLsizei width, GLsizei height) :
         glDebugMessageCallback(SDL_GLDebugMessageCallback, nullptr);
     }
 
-    glGenVertexArrays(1, &emptyVAO); 
+    glGenVertexArrays(1, &m_empty_vao); 
 
     //glEnable(GL_CULL_FACE);
     //glCullFace(GL_BACK);
@@ -41,10 +44,13 @@ App::App(GLsizei width, GLsizei height) :
     );
 
     m_camera_manipulator.SetCamera(&m_camera);
+
+    std::cout << m_mesh.m_triangle_indecies.size() << std::endl;
+
 }
 
 App::~App() {
-    glDeleteVertexArrays(1, &emptyVAO);
+    glDeleteVertexArrays(1, &m_empty_vao);
 }
 
 void App::Update(float elapsed_time_in_seconds, float delta_time_in_seconds) {
@@ -56,7 +62,11 @@ void App::Update(float elapsed_time_in_seconds, float delta_time_in_seconds) {
 void App::Render() {
     glDisable(GL_DEPTH_TEST);
     m_ray_tracer_shader.Use();
-    glBindVertexArray(emptyVAO); 
+    glBindVertexArray(m_empty_vao); 
+
+    m_vertecies_buffer.Bind(0);
+    m_normal_buffer.Bind(1);
+    m_indecies_buffer.Bind(2);
 
     glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, m_skybox.GetTextureID());
