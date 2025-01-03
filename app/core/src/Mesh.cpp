@@ -39,8 +39,8 @@ Mesh::Mesh(const std::filesystem::path& filename) {
         GLfloat ny = static_cast<GLfloat>(attrib.normals[i + 1]);
         GLfloat nz = static_cast<GLfloat>(attrib.normals[i + 2]);
 
-        m_vertecies.push_back(glm::vec4{x, y, z, 0.0});
-        m_normals.push_back(glm::vec4{nx, ny, nz, 0});
+        m_vertecies.push_back(glm::vec3{x, y, z});
+        m_normals.push_back(glm::vec3{nx, ny, nz});
     }
 
     for (const tinyobj::shape_t& shape : shapes) {
@@ -69,7 +69,7 @@ Mesh::Mesh(const std::filesystem::path& filename) {
             GLuint index_2 = static_cast<GLuint>(i_2.vertex_index);
             GLuint index_3 = static_cast<GLuint>(i_3.vertex_index);
 
-            m_triangle_indecies.push_back(glm::uvec4(index_1, index_2, index_3, 0));
+            m_triangle_indecies.push_back(glm::uvec3(index_1, index_2, index_3));
 
             i += 3;
         }

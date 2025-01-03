@@ -15,6 +15,7 @@ core_source_files = [
     'src/CameraManipulator.cpp',
     'src/Framebuffer.cpp',
     'src/Mesh.cpp',
+    'src/Octree.cpp',
     'src/SDL_GLDebugMessageCallback.cpp',
     'src/Shader.cpp',
     'src/Skybox.cpp',
