@@ -8,7 +8,6 @@
 
 
 #include <iostream>
-#include <stdio.h>
 
 bool AABBTriangleOverlapTest(AABB aabb, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3) {
     glm::vec3 box_center{(aabb.min_bounds + aabb.max_bounds) / 2.0f};
@@ -76,7 +75,6 @@ void Octree::DepthFirstTraverse(std::unique_ptr<OctreeNode>& node, size_t curren
     if (!node->is_leaf) {
         for (size_t i = 0; i < 8; i++) {
             if (!node->childrens[i]->is_leaf || node->childrens[i]->triangles.size() != 0) {
-                //std::cout << node->childrens[i]->triangles.size() << std::endl;
                 DepthFirstTraverse(node->childrens[i], current_depth + 1);
             }
         }
@@ -84,8 +82,6 @@ void Octree::DepthFirstTraverse(std::unique_ptr<OctreeNode>& node, size_t curren
 }
 
 void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) {
-    //std::cout << "depth: " << current_depth << std::endl;
-
     if (current_depth >= m_depth_limit) {
         return;
     } else if (node->triangles.size() <= m_max_triangles_per_leaf) {
@@ -99,36 +95,22 @@ void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) 
 
     glm::vec3 mid_point{(node->bounding_box.min_bounds + node->bounding_box.max_bounds) / 2.0f};
 
-    std::array<glm::vec3, 8> children_min_bounds{
-        glm::vec3(node->bounding_box.min_bounds.x, node->bounding_box.min_bounds.y, node->bounding_box.min_bounds.z),
-        glm::vec3(mid_point.x,                     node->bounding_box.min_bounds.y, node->bounding_box.min_bounds.z),
-        glm::vec3(node->bounding_box.min_bounds.x, mid_point.y,                     node->bounding_box.min_bounds.z),
-        glm::vec3(mid_point.x,                     mid_point.y,                     node->bounding_box.min_bounds.z),
-        glm::vec3(node->bounding_box.min_bounds.x, node->bounding_box.min_bounds.y, mid_point.z),
-        glm::vec3(mid_point.x,                     node->bounding_box.min_bounds.y, mid_point.z),
-        glm::vec3(node->bounding_box.min_bounds.x, mid_point.y,                     mid_point.z),
-        glm::vec3(mid_point.x,                     mid_point.y,                     mid_point.z)
-    };
-
-    std::array<glm::vec3, 8> children_max_bounds{
-        glm::vec3(mid_point.x,                     mid_point.y,                     mid_point.z),
-        glm::vec3(node->bounding_box.max_bounds.x, mid_point.y,                     mid_point.z),
-        glm::vec3(mid_point.x,                     node->bounding_box.max_bounds.y, mid_point.z),
-        glm::vec3(node->bounding_box.max_bounds.x, node->bounding_box.max_bounds.y, mid_point.z),
-        glm::vec3(mid_point.x,                     mid_point.y,                     node->bounding_box.max_bounds.z),
-        glm::vec3(node->bounding_box.max_bounds.x, mid_point.y,                     node->bounding_box.max_bounds.z),
-        glm::vec3(mid_point.x,                     node->bounding_box.max_bounds.y, node->bounding_box.max_bounds.z),
-        glm::vec3(node->bounding_box.max_bounds.x, node->bounding_box.max_bounds.y, node->bounding_box.max_bounds.z)
-    };
-
     for (size_t i = 0; i < 8; i++) {
-        node->childrens[i] = std::make_unique<OctreeNode>(OctreeNode{AABB{children_min_bounds[i], children_max_bounds[i]}, {}, {}, true});
+        glm::vec3 children_min_bound{
+            (i & 1) ? mid_point.x : node->bounding_box.min_bounds.x,
+            (i & 2) ? mid_point.y : node->bounding_box.min_bounds.y,
+            (i & 4) ? mid_point.z : node->bounding_box.min_bounds.z
+        };
+        glm::vec3 children_max_bound{
+            (i & 1) ? node->bounding_box.max_bounds.x : mid_point.x,
+            (i & 2) ? node->bounding_box.max_bounds.y : mid_point.y,
+            (i & 4) ? node->bounding_box.max_bounds.z : mid_point.z
+        };
+
+        node->childrens[i] = std::make_unique<OctreeNode>(OctreeNode{AABB{children_min_bound, children_max_bound}, {}, {}, true});
     }
 
     std::vector<glm::uvec3> kept_triangle_indecies{};
-
-    //std::cout << node->triangles.size() << std::endl;
-
 
     std::vector<std::pair<std::vector<size_t>, glm::uvec3>> childrens_overlappings;
 
@@ -151,17 +133,9 @@ void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) 
         } else  {
             childrens_overlappings.push_back({childrens_overlap, ind});
         }
-
-        //std::cout << overlapped_childrens.size() << std::endl;
     }
 
-    //std::cout << "\tsize: " << childrens_overlappings.size() << std::endl;
-
     if (childrens_overlappings.size() > m_max_triangles_per_node) {
-        //for (auto i : childrens_overlappings) {
-        //    std::cout << i.first.size() << " ";
-        //}
-        //std::cout << std::endl;
         std::partial_sort(
             childrens_overlappings.begin(), 
             childrens_overlappings.begin() + m_max_triangles_per_node, 
@@ -170,20 +144,6 @@ void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) 
                 return a.first.size() > b.first.size(); // sorts in descending order
             } 
         );
-        //for (auto i : childrens_overlappings) {
-        //    std::cout << i.first.size() << " ";
-        //}
-        //std::cout << std::endl;
-
-        //for (size_t i = 0; i < m_max_triangles_per_node; i++) {
-        //    kept_triangle_indecies.push_back(childrens_overlappings[i].second);
-        //}
-        //
-        //for (size_t i = m_max_triangles_per_node; i < childrens_overlappings.size(); i++) {
-        //    for (size_t child_index : childrens_overlappings[i].first) {
-        //        node->childrens[child_index]->triangles.push_back(childrens_overlappings[i].second);
-        //    }
-        //}
     } 
     for (size_t i = 0; i < std::min(childrens_overlappings.size(), m_max_triangles_per_node); i++) {
         kept_triangle_indecies.push_back(childrens_overlappings[i].second);
@@ -194,25 +154,8 @@ void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) 
             node->childrens[child_index]->triangles.push_back(childrens_overlappings[i].second);
         }
     }
-    //else {
-    //    for (size_t i = 0; i < childrens_overlappings.size(); i++) {
-    //        kept_triangle_indecies.push_back(childrens_overlappings[i].second);
-    //    }
-    //}
-
-    //std::cout << "\tsize: " << kept_triangle_indecies.size() << std::endl;
-
 
     node->triangles.swap(kept_triangle_indecies);
-
-    //std::cout << "kept size: " << kept_triangle_indecies.size() << std::endl;
-
-    //for (size_t i = 0; i < 8; i++) {
-    //    std::cout << "children: " << node->childrens[i]->triangles.size() << std::endl;
-    //}
-    //std::cout << std::endl;
-
-    //node->triangles.swap(kept_triangle_indecies);
 
     for (size_t i = 0; i < 8; i++) {
         if (node->childrens[i]->triangles.size() != 0) {
@@ -291,4 +234,3 @@ glm::vec3 Octree::GetMinBounds() {
 glm::vec3 Octree::GetMaxBounds() {
     return m_root->bounding_box.max_bounds;
 }
-
