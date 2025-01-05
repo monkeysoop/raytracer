@@ -17,6 +17,7 @@
 #include "CameraManipulator.hpp"
 //#include "Framebuffer.hpp"
 #include "Mesh.hpp"
+#include "Octree.hpp"
 #include "Shader.hpp"
 #include "Skybox.hpp"
 
@@ -46,10 +47,12 @@ private:
     Shader m_ray_tracer_shader;
 
     Mesh m_mesh;
+    Octree m_octree;
 
     Buffer m_vertecies_buffer;
     Buffer m_normal_buffer;
     Buffer m_indecies_buffer;
+    Buffer m_node_buffer;
 
     Skybox m_skybox;
     GLuint m_empty_vao; 

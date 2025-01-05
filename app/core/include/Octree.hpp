@@ -1,6 +1,8 @@
 #pragma once
 
 #include <GL/glew.h>
+#include <glm/glm.hpp>
+
 #include <vector>
 #include <array>
 #include <memory>
@@ -25,6 +27,11 @@ public:
     Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangles_per_node, size_t max_triangles_per_leaf, size_t m_keep_triangles_after_this_many_overlaps);
     ~Octree();
 
+    glm::vec3 GetMinBounds();
+    glm::vec3 GetMaxBounds();
+
+    std::vector<glm::vec4> m_vertecies;
+    std::vector<glm::vec4> m_normals;
     std::vector<uint32_t> m_compressed_node_buffer;
     std::vector<uint32_t> m_compressed_triangle_indecies;
 
@@ -33,8 +40,6 @@ private:
     void DepthFirstTraverse(std::unique_ptr<OctreeNode>& node, size_t current_depth);
     void Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth);
 
-
-    std::vector<glm::vec3> m_vertecies;
     std::unique_ptr<OctreeNode> m_root;
     size_t m_max_depth;
 

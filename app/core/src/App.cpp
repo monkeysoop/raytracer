@@ -14,11 +14,13 @@ App::App(GLsizei width, GLsizei height) :
     //m_framebuffer{width, height}, 
     m_ray_tracer_shader{"assets/ray_tracer.vert", "assets/ray_tracer.frag"},
     m_mesh{"assets/suzanne.obj"},
+    m_octree{std::vector<Mesh>{m_mesh, m_mesh, m_mesh}, 10, 10, 5, 6},
     //m_mesh{"assets/stanford_bunny.obj"},
     //m_mesh{"assets/xyzrgb_dragon.obj"},
-    m_vertecies_buffer{static_cast<GLsizeiptr>(m_mesh.m_vertecies.size() * sizeof(decltype(m_mesh.m_vertecies)::value_type)), m_mesh.m_vertecies.data()},
-    m_normal_buffer{static_cast<GLsizeiptr>(m_mesh.m_normals.size() * sizeof(decltype(m_mesh.m_normals)::value_type)), m_mesh.m_normals.data()},
-    m_indecies_buffer{static_cast<GLsizeiptr>(m_mesh.m_triangle_indecies.size() * sizeof(decltype(m_mesh.m_triangle_indecies)::value_type)), m_mesh.m_triangle_indecies.data()},
+    m_vertecies_buffer{static_cast<GLsizeiptr>(m_octree.m_vertecies.size() * sizeof(decltype(m_octree.m_vertecies)::value_type)), m_octree.m_vertecies.data()},
+    m_normal_buffer{static_cast<GLsizeiptr>(m_octree.m_normals.size() * sizeof(decltype(m_octree.m_normals)::value_type)), m_octree.m_normals.data()},
+    m_indecies_buffer{static_cast<GLsizeiptr>(m_octree.m_compressed_triangle_indecies.size() * sizeof(decltype(m_octree.m_compressed_triangle_indecies)::value_type)), m_octree.m_compressed_triangle_indecies.data()},
+    m_node_buffer{static_cast<GLsizeiptr>(m_octree.m_compressed_node_buffer.size() * sizeof(decltype(m_octree.m_compressed_node_buffer)::value_type)), m_octree.m_compressed_node_buffer.data()},
     m_skybox{},
     m_time_in_seconds{0.0f}
 {
@@ -44,9 +46,6 @@ App::App(GLsizei width, GLsizei height) :
     );
 
     m_camera_manipulator.SetCamera(&m_camera);
-
-    std::cout << m_mesh.m_triangle_indecies.size() << std::endl;
-
 }
 
 App::~App() {
@@ -67,6 +66,7 @@ void App::Render() {
     m_vertecies_buffer.Bind(0);
     m_normal_buffer.Bind(1);
     m_indecies_buffer.Bind(2);
+    m_node_buffer.Bind(3);
 
     glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, m_skybox.GetTextureID());
@@ -76,6 +76,8 @@ void App::Render() {
     glUniform3fv(m_ray_tracer_shader.ul("position"), 1, glm::value_ptr(m_camera.GetEye()));
     glUniform1f(m_ray_tracer_shader.ul("width"), static_cast<GLfloat>(m_width));
     glUniform1f(m_ray_tracer_shader.ul("height"), static_cast<GLfloat>(m_height));
+    glUniform3fv(m_ray_tracer_shader.ul("octree_min_bounds"), 1, glm::value_ptr(m_octree.GetMinBounds()));
+    glUniform3fv(m_ray_tracer_shader.ul("octree_max_bounds"), 1, glm::value_ptr(m_octree.GetMaxBounds()));
 
     //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glDrawArrays(GL_TRIANGLES, 0, 3);
