@@ -29,7 +29,7 @@ void Octree::DepthFirstCompress(std::unique_ptr<OctreeNode>& node, size_t parent
     
     if (!node->is_leaf) {
         for (size_t i = 0; i < 8; i++) {
-            if (!node->childrens[i]->is_leaf) {
+            if (!node->childrens[i]->is_leaf || node->childrens[i]->triangles.size() != 0) {
                 children_mask |= (0x01 << i);
                 children_count++;
             }
@@ -38,8 +38,6 @@ void Octree::DepthFirstCompress(std::unique_ptr<OctreeNode>& node, size_t parent
     
     uint32_t node_info = (triangle_count << 16) | (children_mask << 8) | children_count;
     uint32_t triangle_start = static_cast<uint32_t>(m_compressed_triangle_indecies.size());
-
-    //printf("node: 0x%04x  0x%02x  0x%02x  %d\n", triangle_count, children_mask, children_count, node->is_leaf);
 
     for (const glm::uvec3& ind : node->triangles) {
         m_compressed_triangle_indecies.push_back(static_cast<uint32_t>(ind.x));
@@ -135,9 +133,9 @@ void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) 
     std::vector<std::pair<std::vector<size_t>, glm::uvec3>> childrens_overlappings;
 
     for (const glm::uvec3& ind : node->triangles) {
-        glm::vec3 v1 = m_vertecies[ind.x];
-        glm::vec3 v2 = m_vertecies[ind.y];
-        glm::vec3 v3 = m_vertecies[ind.z];
+        glm::vec3 v1{m_vertecies[ind.x].x, m_vertecies[ind.x].y, m_vertecies[ind.x].z};
+        glm::vec3 v2{m_vertecies[ind.y].x, m_vertecies[ind.y].y, m_vertecies[ind.y].z};
+        glm::vec3 v3{m_vertecies[ind.z].x, m_vertecies[ind.z].y, m_vertecies[ind.z].z};
 
         std::vector<size_t> childrens_overlap{};
         for (size_t child_index = 0; child_index < 8; child_index++) {
@@ -232,10 +230,12 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
     m_max_triangles_per_leaf{max_triangles_per_leaf}, 
     m_keep_triangles_after_this_many_overlaps{m_keep_triangles_after_this_many_overlaps}
 {
-    std::vector<glm::vec3> combined_vertecies{};
+    std::vector<glm::vec4> combined_vertecies{};
+    std::vector<glm::vec4> combined_normals{};
     std::vector<glm::uvec3> combined_triangle_indecies{};
 
     combined_vertecies.reserve(std::accumulate(meshes.begin(), meshes.end(), 0, [](size_t sum, const Mesh& mesh) {return sum + mesh.m_vertecies.size();}));
+    combined_normals.reserve(std::accumulate(meshes.begin(), meshes.end(), 0, [](size_t sum, const Mesh& mesh) {return sum + mesh.m_normals.size();}));
     combined_triangle_indecies.reserve(std::accumulate(meshes.begin(), meshes.end(), 0, [](size_t sum, const Mesh& mesh) {return sum + mesh.m_triangle_indecies.size();}));
 
     glm::vec3 min_bounds{std::numeric_limits<float>::infinity()};
@@ -243,14 +243,15 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
 
     for (const Mesh& mesh : meshes) {
         combined_vertecies.insert(combined_vertecies.end(), mesh.m_vertecies.cbegin(), mesh.m_vertecies.cend());
+        combined_normals.insert(combined_normals.end(), mesh.m_normals.cbegin(), mesh.m_normals.cend());
 
-        GLuint prev_size = static_cast<GLuint>(combined_triangle_indecies.size());
+        GLuint prev_size = static_cast<GLuint>(combined_vertecies.size());
         std::transform(mesh.m_triangle_indecies.cbegin(), mesh.m_triangle_indecies.cend(), std::back_inserter(combined_triangle_indecies), [prev_size](glm::uvec3 ind) {return ind + glm::uvec3{prev_size};});
 
         for (const glm::uvec3& ind : mesh.m_triangle_indecies) {
-            glm::vec3 v1 = mesh.m_vertecies[ind.x];
-            glm::vec3 v2 = mesh.m_vertecies[ind.y];
-            glm::vec3 v3 = mesh.m_vertecies[ind.z];
+            glm::vec3 v1{mesh.m_vertecies[ind.x].x, mesh.m_vertecies[ind.x].y, mesh.m_vertecies[ind.x].z};
+            glm::vec3 v2{mesh.m_vertecies[ind.y].x, mesh.m_vertecies[ind.y].y, mesh.m_vertecies[ind.y].z};
+            glm::vec3 v3{mesh.m_vertecies[ind.z].x, mesh.m_vertecies[ind.z].y, mesh.m_vertecies[ind.z].z};
 
             min_bounds = glm::min(min_bounds, v1);
             min_bounds = glm::min(min_bounds, v2);
@@ -263,6 +264,7 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
     }
 
     m_vertecies = std::move(combined_vertecies);
+    m_normals = std::move(combined_normals);
 
     m_root = std::make_unique<OctreeNode>(OctreeNode{AABB{min_bounds, max_bounds}, combined_triangle_indecies, {}, true});
     
@@ -270,7 +272,7 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
 
     std::cout << "............................................................." << std::endl;
 
-    DepthFirstTraverse(m_root, 0);
+    //DepthFirstTraverse(m_root, 0);
 
     DepthFirstCompress(m_root, 0);
     
@@ -281,3 +283,12 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
 }
 
 Octree::~Octree() {}
+
+glm::vec3 Octree::GetMinBounds() {
+    return m_root->bounding_box.min_bounds;
+}
+
+glm::vec3 Octree::GetMaxBounds() {
+    return m_root->bounding_box.max_bounds;
+}
+
