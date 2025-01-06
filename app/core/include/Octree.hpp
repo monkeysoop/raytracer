@@ -37,8 +37,14 @@ public:
 
 private:
     void DepthFirstCompress(std::unique_ptr<OctreeNode>& node, size_t parent_node_child_pointer_location);
-    void DepthFirstTraverse(std::unique_ptr<OctreeNode>& node, size_t current_depth);
     void Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth);
+    void DepthFirstTraverse(
+        std::unique_ptr<OctreeNode>& node, 
+        size_t current_depth, 
+        std::vector<std::vector<size_t>>& triangles_per_level, 
+        std::vector<std::vector<size_t>>& children_count_per_level, 
+        std::vector<size_t>& leaf_depths
+    );
 
     std::unique_ptr<OctreeNode> m_root;
     size_t m_max_depth;

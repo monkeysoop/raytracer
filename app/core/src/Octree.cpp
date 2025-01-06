@@ -5,15 +5,34 @@
 #include <limits>
 #include <numeric>
 #include <algorithm>
+#include <string>
+#include <cmath>
 
 
 #include <iostream>
+
+float Average(std::vector<size_t> vector) {
+    return vector.empty() ? 0.0 : (std::accumulate(vector.begin(), vector.end(), 0.0) / vector.size());
+}
 
 bool AABBTriangleOverlapTest(AABB aabb, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3) {
     glm::vec3 box_center{(aabb.min_bounds + aabb.max_bounds) / 2.0f};
     glm::vec3 box_half_size{(aabb.max_bounds - aabb.min_bounds) / 2.0f};
  
     return triBoxOverlap(box_center, box_half_size, v1, v2, v3);
+}
+
+std::string SizeToString(size_t size_in_bytes) {
+    if (size_in_bytes < 1024) {
+        return std::to_string(size_in_bytes) + " B"; 
+    } else if (size_in_bytes < 1024 * 1024) {
+        return std::to_string(size_in_bytes / 1024) + " KB"; 
+    } else if (size_in_bytes < 1024 * 1024 * 1024) {
+        return std::to_string(size_in_bytes / (1024 * 1024)) + " MB"; 
+    } else {
+        return std::to_string(size_in_bytes / (1024 * 1024 * 1024)) + " GB"; 
+    }
+
 }
 
 void Octree::DepthFirstCompress(std::unique_ptr<OctreeNode>& node, size_t parent_node_child_pointer_location) {
@@ -64,21 +83,35 @@ void Octree::DepthFirstCompress(std::unique_ptr<OctreeNode>& node, size_t parent
 
 }
 
-void Octree::DepthFirstTraverse(std::unique_ptr<OctreeNode>& node, size_t current_depth) {
-    for (size_t i = 0; i < current_depth; i++) {
-        std::cout << '\t';
-    }
-    std::cout << "size: " << node->triangles.size();
+void Octree::DepthFirstTraverse(
+    std::unique_ptr<OctreeNode>& node, 
+    size_t current_depth, 
+    std::vector<std::vector<size_t>>& triangles_per_level, 
+    std::vector<std::vector<size_t>>& children_count_per_level, 
+    std::vector<size_t>& leaf_depths
+) {
+    //for (size_t i = 0; i < current_depth; i++) {
+    //    std::cout << '\t';
+    //}
 
-    std::cout << (node->is_leaf ? " leaf" : " node") << " depth: " << current_depth << std::endl;
+    triangles_per_level[current_depth].push_back(node->triangles.size());
+
+    //std::cout << "size: " << node->triangles.size();
+    //std::cout << (node->is_leaf ? " leaf" : " node") << " depth: " << current_depth << std::endl;
 
     if (!node->is_leaf) {
+        size_t children_count = 0;
         for (size_t i = 0; i < 8; i++) {
             if (!node->childrens[i]->is_leaf || node->childrens[i]->triangles.size() != 0) {
-                DepthFirstTraverse(node->childrens[i], current_depth + 1);
+                children_count++;
+                DepthFirstTraverse(node->childrens[i], current_depth + 1, triangles_per_level, children_count_per_level, leaf_depths);
             }
         }
+        children_count_per_level[current_depth].push_back(children_count);
+    } else {
+        leaf_depths.push_back(current_depth);
     }
+
 }
 
 void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) {
@@ -185,10 +218,10 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
     glm::vec3 max_bounds{-1.0f * std::numeric_limits<float>::infinity()};
 
     for (const Mesh& mesh : meshes) {
+        GLuint prev_size = static_cast<GLuint>(combined_vertecies.size());
+
         combined_vertecies.insert(combined_vertecies.end(), mesh.m_vertecies.cbegin(), mesh.m_vertecies.cend());
         combined_normals.insert(combined_normals.end(), mesh.m_normals.cbegin(), mesh.m_normals.cend());
-
-        GLuint prev_size = static_cast<GLuint>(combined_vertecies.size());
         std::transform(mesh.m_triangle_indecies.cbegin(), mesh.m_triangle_indecies.cend(), std::back_inserter(combined_triangle_indecies), [prev_size](glm::uvec3 ind) {return ind + glm::uvec3{prev_size};});
 
         for (const glm::uvec3& ind : mesh.m_triangle_indecies) {
@@ -212,17 +245,42 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
     m_root = std::make_unique<OctreeNode>(OctreeNode{AABB{min_bounds, max_bounds}, combined_triangle_indecies, {}, true});
     
     Subdivide(m_root, 1);
+    DepthFirstCompress(m_root, 0);
 
+
+    std::vector<std::vector<size_t>> triangles_per_level;
+    std::vector<std::vector<size_t>> children_count_per_level;
+    std::vector<size_t> leaf_depths;
+
+    for (size_t i = 0; i < (m_max_depth + 1); i++) {
+        triangles_per_level.push_back(std::vector<size_t>{});
+        children_count_per_level.push_back(std::vector<size_t>{});
+    }
+
+    DepthFirstTraverse(m_root, 0, triangles_per_level, children_count_per_level, leaf_depths);
+
+    
+    
+    std::cout << "............................................................." << std::endl;
+    for (size_t i = 0; i < triangles_per_level.size(); i++) {
+        std::cout << "level: " << i << " avg triangles per level: " << Average(triangles_per_level[i]) << std::endl;
+    }
+    for (size_t i = 0; i < children_count_per_level.size(); i++) {
+        std::cout << "level: " << i << " avg children count per level: " << Average(children_count_per_level[i]) << std::endl;
+    }
+    std::cout << "max depth: " << m_max_depth << std::endl;
+    std::cout << "average leaf depth: " << Average(leaf_depths) << std::endl;
+    std::cout << "............................................................." << std::endl;
+    std::cout << "vertecies count: " << m_vertecies.size() << std::endl;
+    std::cout << "triangle count: " << combined_triangle_indecies.size() << std::endl;
+    std::cout << "vertecies size: " << SizeToString(m_vertecies.size() * 16) << std::endl;
+    std::cout << "normals size: " << SizeToString(m_normals.size() * 16) << std::endl;
+    std::cout << "uncompressed triangle size: " << SizeToString(combined_triangle_indecies.size() * 12) << std::endl;
+    std::cout << "............................................................." << std::endl;
+    std::cout << "compressed node size: " << SizeToString(m_compressed_node_buffer.size() * 4) << std::endl;
+    std::cout << "compresed triangle size: " << SizeToString(m_compressed_triangle_indecies.size() * 4) << std::endl;
     std::cout << "............................................................." << std::endl;
 
-    //DepthFirstTraverse(m_root, 0);
-
-    DepthFirstCompress(m_root, 0);
-    
-    std::cout << "compressed node size: " << m_compressed_node_buffer.size() << std::endl;
-    std::cout << "compresed triangle size: " << m_compressed_triangle_indecies.size() << std::endl;
-    std::cout << "uncompressed triangle size: " << combined_triangle_indecies.size() << std::endl;
-    std::cout << "max depth: " << m_max_depth << std::endl;
 }
 
 Octree::~Octree() {}
