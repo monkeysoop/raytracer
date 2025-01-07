@@ -55,13 +55,14 @@ void Octree::DepthFirstCompress(std::unique_ptr<OctreeNode>& node, size_t parent
     }
     
     uint32_t node_info = (triangle_count << 16) | (children_mask << 8) | children_count;
-    uint32_t triangle_start = static_cast<uint32_t>(m_compressed_triangle_indecies.size());
+    uint32_t triangle_start = static_cast<uint32_t>(m_compressed_triangles.size());
 
-    for (const glm::uvec3& ind : node->triangles) {
-        m_compressed_triangle_indecies.push_back(static_cast<uint32_t>(ind.x));
-        m_compressed_triangle_indecies.push_back(static_cast<uint32_t>(ind.y));
-        m_compressed_triangle_indecies.push_back(static_cast<uint32_t>(ind.z));
-    }
+    m_compressed_triangles.insert(m_compressed_triangles.end(), node->triangles.cbegin(), node->triangles.cend());
+    //for (const glm::uvec4& ind : node->triangles) {
+    //    m_compressed_triangles.push_back(static_cast<uint32_t>(ind.x));
+    //    m_compressed_triangles.push_back(static_cast<uint32_t>(ind.y));
+    //    m_compressed_triangles.push_back(static_cast<uint32_t>(ind.z));
+    //}
     
     m_compressed_node_buffer.push_back(node_info);
     m_compressed_node_buffer.push_back(triangle_start);
@@ -143,11 +144,11 @@ void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) 
         node->childrens[i] = std::make_unique<OctreeNode>(OctreeNode{AABB{children_min_bound, children_max_bound}, {}, {}, true});
     }
 
-    std::vector<glm::uvec3> kept_triangle_indecies{};
+    std::vector<glm::uvec4> kept_triangle_indecies{};
 
-    std::vector<std::pair<std::vector<size_t>, glm::uvec3>> childrens_overlappings;
+    std::vector<std::pair<std::vector<size_t>, glm::uvec4>> childrens_overlappings;
 
-    for (const glm::uvec3& ind : node->triangles) {
+    for (const glm::uvec4& ind : node->triangles) {
         glm::vec3 v1{m_vertecies[ind.x].x, m_vertecies[ind.x].y, m_vertecies[ind.x].z};
         glm::vec3 v2{m_vertecies[ind.y].x, m_vertecies[ind.y].y, m_vertecies[ind.y].z};
         glm::vec3 v3{m_vertecies[ind.z].x, m_vertecies[ind.z].y, m_vertecies[ind.z].z};
@@ -173,7 +174,7 @@ void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) 
             childrens_overlappings.begin(), 
             childrens_overlappings.begin() + m_max_triangles_per_node, 
             childrens_overlappings.end(),
-            [](const std::pair<std::vector<size_t>, glm::uvec3>& a, const std::pair<std::vector<size_t>, glm::uvec3>& b) {
+            [](const std::pair<std::vector<size_t>, glm::uvec4>& a, const std::pair<std::vector<size_t>, glm::uvec4>& b) {
                 return a.first.size() > b.first.size(); // sorts in descending order
             } 
         );
@@ -188,7 +189,7 @@ void Octree::Subdivide(std::unique_ptr<OctreeNode>& node, size_t current_depth) 
         }
     }
 
-    node->triangles.swap(kept_triangle_indecies);
+    node->triangles = std::move(kept_triangle_indecies);
 
     for (size_t i = 0; i < 8; i++) {
         if (node->childrens[i]->triangles.size() != 0) {
@@ -208,11 +209,11 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
 {
     std::vector<glm::vec4> combined_vertecies{};
     std::vector<glm::vec4> combined_normals{};
-    std::vector<glm::uvec3> combined_triangle_indecies{};
+    std::vector<glm::uvec4> combined_triangles{};
 
     combined_vertecies.reserve(std::accumulate(meshes.begin(), meshes.end(), 0, [](size_t sum, const Mesh& mesh) {return sum + mesh.m_vertecies.size();}));
     combined_normals.reserve(std::accumulate(meshes.begin(), meshes.end(), 0, [](size_t sum, const Mesh& mesh) {return sum + mesh.m_normals.size();}));
-    combined_triangle_indecies.reserve(std::accumulate(meshes.begin(), meshes.end(), 0, [](size_t sum, const Mesh& mesh) {return sum + mesh.m_triangle_indecies.size();}));
+    combined_triangles.reserve(std::accumulate(meshes.begin(), meshes.end(), 0, [](size_t sum, const Mesh& mesh) {return sum + mesh.m_triangles.size();}));
 
     glm::vec3 min_bounds{std::numeric_limits<float>::infinity()};
     glm::vec3 max_bounds{-1.0f * std::numeric_limits<float>::infinity()};
@@ -222,9 +223,15 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
 
         combined_vertecies.insert(combined_vertecies.end(), mesh.m_vertecies.cbegin(), mesh.m_vertecies.cend());
         combined_normals.insert(combined_normals.end(), mesh.m_normals.cbegin(), mesh.m_normals.cend());
-        std::transform(mesh.m_triangle_indecies.cbegin(), mesh.m_triangle_indecies.cend(), std::back_inserter(combined_triangle_indecies), [prev_size](glm::uvec3 ind) {return ind + glm::uvec3{prev_size};});
+        std::transform(
+            mesh.m_triangles.cbegin(), 
+            mesh.m_triangles.cend(), 
+            std::back_inserter(combined_triangles), 
+            [prev_size](glm::uvec4 ind) {
+                return ind + glm::uvec4{prev_size, prev_size, prev_size, 0};
+            });
 
-        for (const glm::uvec3& ind : mesh.m_triangle_indecies) {
+        for (const glm::uvec4& ind : mesh.m_triangles) {
             glm::vec3 v1{mesh.m_vertecies[ind.x].x, mesh.m_vertecies[ind.x].y, mesh.m_vertecies[ind.x].z};
             glm::vec3 v2{mesh.m_vertecies[ind.y].x, mesh.m_vertecies[ind.y].y, mesh.m_vertecies[ind.y].z};
             glm::vec3 v3{mesh.m_vertecies[ind.z].x, mesh.m_vertecies[ind.z].y, mesh.m_vertecies[ind.z].z};
@@ -242,7 +249,7 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
     m_vertecies = std::move(combined_vertecies);
     m_normals = std::move(combined_normals);
 
-    m_root = std::make_unique<OctreeNode>(OctreeNode{AABB{min_bounds, max_bounds}, combined_triangle_indecies, {}, true});
+    m_root = std::make_unique<OctreeNode>(OctreeNode{AABB{min_bounds, max_bounds}, combined_triangles, {}, true});
     
     Subdivide(m_root, 1);
     DepthFirstCompress(m_root, 0);
@@ -272,13 +279,13 @@ Octree::Octree(std::vector<Mesh> meshes, size_t depth_limit, size_t max_triangle
     std::cout << "average leaf depth: " << Average(leaf_depths) << std::endl;
     std::cout << "............................................................." << std::endl;
     std::cout << "vertecies count: " << m_vertecies.size() << std::endl;
-    std::cout << "triangle count: " << combined_triangle_indecies.size() << std::endl;
+    std::cout << "triangle count: " << combined_triangles.size() << std::endl;
     std::cout << "vertecies size: " << SizeToString(m_vertecies.size() * 16) << std::endl;
     std::cout << "normals size: " << SizeToString(m_normals.size() * 16) << std::endl;
-    std::cout << "uncompressed triangle size: " << SizeToString(combined_triangle_indecies.size() * 12) << std::endl;
+    std::cout << "uncompressed triangle size: " << SizeToString(combined_triangles.size() * 16) << std::endl;
     std::cout << "............................................................." << std::endl;
     std::cout << "compressed node size: " << SizeToString(m_compressed_node_buffer.size() * 4) << std::endl;
-    std::cout << "compresed triangle size: " << SizeToString(m_compressed_triangle_indecies.size() * 4) << std::endl;
+    std::cout << "compresed triangle size: " << SizeToString(m_compressed_triangles.size() * 4) << std::endl;
     std::cout << "............................................................." << std::endl;
 
 }

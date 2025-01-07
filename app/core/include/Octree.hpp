@@ -17,7 +17,7 @@ struct AABB {
 
 struct OctreeNode {
     struct AABB bounding_box;
-    std::vector<glm::uvec3> triangles;
+    std::vector<glm::uvec4> triangles;
     std::array<std::unique_ptr<OctreeNode>, 8> childrens;
     bool is_leaf;
 };
@@ -33,7 +33,7 @@ public:
     std::vector<glm::vec4> m_vertecies;
     std::vector<glm::vec4> m_normals;
     std::vector<uint32_t> m_compressed_node_buffer;
-    std::vector<uint32_t> m_compressed_triangle_indecies;
+    std::vector<glm::uvec4> m_compressed_triangles;
 
 private:
     void DepthFirstCompress(std::unique_ptr<OctreeNode>& node, size_t parent_node_child_pointer_location);
