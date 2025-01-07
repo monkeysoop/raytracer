@@ -9,7 +9,7 @@ layout(std430, binding = 1) buffer NormalsBuffer {
 };
 
 layout(std430, binding = 2) buffer IndeciesBuffer {
-    readonly uint indecies[];
+    readonly uvec4 indecies[];
 };
 
 layout(std430, binding = 3) buffer NodesBuffer {
@@ -30,6 +30,124 @@ uniform float height;
 uniform vec3 octree_min_bounds;
 uniform vec3 octree_max_bounds;
 
+uniform uint max_recursion_limit;
+uniform float time;
+
+struct Material {
+    uint type;
+    vec3 color;
+    float roughness;
+    float refractive_index;
+};
+
+//uniform Material materials[6];
+
+const uint NUM_OF_MATERIALS = 6;
+
+const Material materials[NUM_OF_MATERIALS] = Material[NUM_OF_MATERIALS](
+    Material(1, vec3(0.3, 0.5, 0.4), 0.1, 1.5),
+    Material(1, vec3(0.0, 1.0, 0.0), 0.3, 1.5),
+    Material(1, vec3(1.0, 1.0, 0.0), 0.3, 1.5),
+    Material(1, vec3(1.0, 0.0, 0.0), 0.3, 1.5),
+    Material(2, vec3(0.0, 1.0, 1.0), 0.3, 1.8),
+    Material(2, vec3(0.0, 1.0, 1.0), 0.01, 1.5)
+    //Material(2, vec3(1.0, 0.0, 0.0), 0.9, 0.7)
+);
+
+struct Sphere {
+    vec3 center;
+    float radius;
+};
+
+
+const Sphere spheres[84] = Sphere[84](
+    Sphere(vec3( 0.000000, -1000.000000, 0.000000), 1000.000000),
+    Sphere(vec3( -7.995381, 0.200000, -7.478668), 0.200000),
+    Sphere(vec3( -7.696819, 0.200000, -5.468978), 0.200000),
+    Sphere(vec3( -7.824804, 0.200000, -3.120637), 0.200000),
+    Sphere(vec3( -7.132909, 0.200000, -1.701323), 0.200000),
+    Sphere(vec3( -7.569523, 0.200000, 0.494554), 0.200000),
+    Sphere(vec3( -7.730332, 0.200000, 2.358976), 0.200000),
+    Sphere(vec3( -7.892865, 0.200000, 4.753728), 0.200000),
+    Sphere(vec3( -7.656691, 0.200000, 6.888913), 0.200000),
+    Sphere(vec3( -7.217835, 0.200000, 8.203466), 0.200000),
+    Sphere(vec3( -5.115232, 0.200000, -7.980404), 0.200000),
+    Sphere(vec3( -5.323222, 0.200000, -5.113037), 0.200000),
+    Sphere(vec3( -5.410681, 0.200000, -3.527741), 0.200000),
+    Sphere(vec3( -5.460670, 0.200000, -1.166543), 0.200000),
+    Sphere(vec3( -5.457659, 0.200000, 0.363870), 0.200000),
+    Sphere(vec3( -5.798715, 0.200000, 2.161684), 0.200000),
+    Sphere(vec3( -5.116586, 0.200000, 4.470188), 0.200000),
+    Sphere(vec3( -5.273591, 0.200000, 6.795187), 0.200000),
+    Sphere(vec3( -5.120286, 0.200000, 8.731398), 0.200000),
+    Sphere(vec3( -3.601565, 0.200000, -7.895600), 0.200000),
+    Sphere(vec3( -3.735860, 0.200000, -5.163056), 0.200000),
+    Sphere(vec3( -3.481116, 0.200000, -3.794556), 0.200000),
+    Sphere(vec3( -3.866858, 0.200000, -1.465965), 0.200000),
+    Sphere(vec3( -3.168870, 0.200000, 0.553099), 0.200000),
+    Sphere(vec3( -3.428552, 0.200000, 2.627547), 0.200000),
+    Sphere(vec3( -3.771736, 0.200000, 4.324785), 0.200000),
+    Sphere(vec3( -3.768522, 0.200000, 6.384588), 0.200000),
+    Sphere(vec3( -3.286992, 0.200000, 8.441148), 0.200000),
+    Sphere(vec3( -1.552127, 0.200000, -7.728200), 0.200000),
+    Sphere(vec3( -1.360796, 0.200000, -5.346098), 0.200000),
+    Sphere(vec3( -1.287209, 0.200000, -3.735321), 0.200000),
+    Sphere(vec3( -1.344859, 0.200000, -1.726654), 0.200000),
+    Sphere(vec3( -1.974774, 0.200000, 0.183260), 0.200000),
+    Sphere(vec3( -1.542872, 0.200000, 2.067868), 0.200000),
+    Sphere(vec3( -1.743856, 0.200000, 4.752810), 0.200000),
+    Sphere(vec3( -1.955621, 0.200000, 6.493702), 0.200000),
+    Sphere(vec3( -1.350449, 0.200000, 8.068503), 0.200000),
+    Sphere(vec3( 0.706123, 0.200000, -7.116040), 0.200000),
+    Sphere(vec3( 0.897766, 0.200000, -5.938681), 0.200000),
+    Sphere(vec3( 0.744113, 0.200000, -3.402960), 0.200000),
+    Sphere(vec3( 0.867750, 0.200000, -1.311908), 0.200000),
+    Sphere(vec3( 0.082480, 0.200000, 0.838206), 0.200000),
+    Sphere(vec3( 0.649692, 0.200000, 2.525103), 0.200000),
+    Sphere(vec3( 0.378574, 0.200000, 4.055579), 0.200000),
+    Sphere(vec3( 0.425844, 0.200000, 6.098526), 0.200000),
+    Sphere(vec3( 0.261365, 0.200000, 8.661150), 0.200000),
+    Sphere(vec3( 2.814218, 0.200000, -7.751227), 0.200000),
+    Sphere(vec3( 2.050073, 0.200000, -5.731364), 0.200000),
+    Sphere(vec3( 2.020130, 0.200000, -3.472627), 0.200000),
+    Sphere(vec3( 2.884277, 0.200000, -1.232662), 0.200000),
+    Sphere(vec3( 2.644454, 0.200000, 0.596324), 0.200000),
+    Sphere(vec3( 2.194283, 0.200000, 2.880603), 0.200000),
+    Sphere(vec3( 2.281000, 0.200000, 4.094307), 0.200000),
+    Sphere(vec3( 2.080841, 0.200000, 6.716384), 0.200000),
+    Sphere(vec3( 2.287131, 0.200000, 8.583242), 0.200000),
+    Sphere(vec3( 4.329136, 0.200000, -7.497218), 0.200000),
+    Sphere(vec3( 4.502115, 0.200000, -5.941060), 0.200000),
+    Sphere(vec3( 4.750631, 0.200000, -3.836759), 0.200000),
+    Sphere(vec3( 4.082084, 0.200000, -1.180746), 0.200000),
+    Sphere(vec3( 4.429173, 0.200000, 2.069721), 0.200000),
+    Sphere(vec3( 4.277152, 0.200000, 4.297482), 0.200000),
+    Sphere(vec3( 4.012743, 0.200000, 6.225072), 0.200000),
+    Sphere(vec3( 4.047066, 0.200000, 8.419360), 0.200000),
+    Sphere(vec3( 6.441846, 0.200000, -7.700798), 0.200000),
+    Sphere(vec3( 6.047810, 0.200000, -5.519369), 0.200000),
+    Sphere(vec3( 6.779211, 0.200000, -3.740542), 0.200000),
+    Sphere(vec3( 6.430776, 0.200000, -1.332107), 0.200000),
+    Sphere(vec3( 6.476387, 0.200000, 0.329973), 0.200000),
+    Sphere(vec3( 6.568686, 0.200000, 2.116949), 0.200000),
+    Sphere(vec3( 6.371189, 0.200000, 4.609841), 0.200000),
+    Sphere(vec3( 6.011877, 0.200000, 6.569579), 0.200000),
+    Sphere(vec3( 6.096087, 0.200000, 8.892333), 0.200000),
+    Sphere(vec3( 8.185763, 0.200000, -7.191109), 0.200000),
+    Sphere(vec3( 8.411960, 0.200000, -5.285309), 0.200000),
+    Sphere(vec3( 8.047109, 0.200000, -3.427552), 0.200000),
+    Sphere(vec3( 8.119639, 0.200000, -1.652587), 0.200000),
+    Sphere(vec3( 8.818120, 0.200000, 0.401292), 0.200000),
+    Sphere(vec3( 8.754155, 0.200000, 2.152549), 0.200000),
+    Sphere(vec3( 8.595298, 0.200000, 4.802001), 0.200000),
+    Sphere(vec3( 8.036216, 0.200000, 6.739752), 0.200000),
+    Sphere(vec3( 8.256561, 0.200000, 8.129115), 0.200000),
+    Sphere(vec3( 0.000000, 1.000000, 0.000000), 1.000000),
+    Sphere(vec3( -4.000000, 1.000000, 0.000000), 1.000000),
+    Sphere(vec3( 4.000000, 1.000000, 0.000000), 1.000000)
+);
+
+
 struct Ray {
     vec3 position;
     vec3 direction;
@@ -41,6 +159,18 @@ struct AABB {
     vec3 max_bounds;
 };
 
+struct HitInfo {
+    bool has_hit;
+    vec3 position;
+    vec3 normal;
+    uint material_id;
+};
+
+const uint LAMBERTIAN = 0;
+const uint METAL = 1;
+const uint DIELECTRIC = 2;
+
+
 float min3(vec3 a) {
     return min(min(a.x, a.y), a.z);
 }
@@ -50,6 +180,9 @@ float max3(vec3 a) {
 }
 
 const float INFINITY = 1.0 / 0.0;
+const float PI = 3.1415926535897932384626433832795;
+
+
 
 
 // from https://gamedev.stackexchange.com/questions/23743/whats-the-most-efficient-way-to-find-barycentric-coordinates
@@ -68,6 +201,26 @@ vec3 Barycentric(vec3 p, vec3 a, vec3 b, vec3 c) {
     float u = 1.0f - v - w;
 
     return vec3(u, v, w);
+}
+
+// from https://www.shadertoy.com/view/MtycDD
+float RaySphere(Ray r, Sphere sphere, float closest_distance) {
+	vec3 oc = r.position - sphere.center;
+    float b = dot(oc, r.direction);
+    float c = dot(oc, oc) - sphere.radius * sphere.radius;
+    float discriminant = b * b - c;
+    if (discriminant < 0.0) return INFINITY;
+
+	float s = sqrt(discriminant);
+	float t1 = -b - s;
+	float t2 = -b + s;
+	
+	float t = t1 < 0.0 ? t2 : t1;
+    if (t < closest_distance && t > 0.0) {
+	    return t;
+    } else {
+        return INFINITY;
+    }
 }
 
 // from https://github.com/btmxh/glsl-intersect/blob/master/3d/intersection/rayTriangle.glsl
@@ -99,30 +252,84 @@ float RayTriangle(vec3 rayOrigin, vec3 rayDir, vec3 v1, vec3 v2, vec3 v3, float 
     return dot(e2, qvec) * invDet;
 }
 
-bool RayAABB(const Ray ray, const AABB aabb) {
+// from https://www.shadertoy.com/view/Xt3cDn
+uint baseHash(uvec2 p) {
+    p = 1103515245U*((p >> 1U)^(p.yx));
+    uint h32 = 1103515245U*((p.x)^(p.y>>3U));
+    return h32^(h32 >> 16);
+}
+float hash1(inout float seed) {
+    uint n = baseHash(floatBitsToUint(vec2(seed+=.1,seed+=.1)));
+    return float(n)/float(0xffffffffU);
+}
+vec2 hash2(inout float seed) {
+    uint n = baseHash(floatBitsToUint(vec2(seed+=.1,seed+=.1)));
+    uvec2 rz = uvec2(n, n*48271U);
+    return vec2(rz.xy & uvec2(0x7fffffffU))/float(0x7fffffff);
+}
+vec3 hash3(inout float seed) {
+    uint n = baseHash(floatBitsToUint(vec2(seed+=.1,seed+=.1)));
+    uvec3 rz = uvec3(n, n*16807U, n*48271U);
+    return vec3(rz & uvec3(0x7fffffffU))/float(0x7fffffff);
+}
+
+// from https://www.shadertoy.com/view/MtycDD
+vec3 random_cos_weighted_hemisphere_direction(const vec3 n, inout float seed) {
+  	vec2 r = hash2(seed);
+	vec3  uu = normalize(cross(n, abs(n.y) > .5 ? vec3(1.,0.,0.) : vec3(0.,1.,0.)));
+	vec3  vv = cross(uu, n);
+	float ra = sqrt(r.y);
+	float rx = ra*cos(6.28318530718*r.x); 
+	float ry = ra*sin(6.28318530718*r.x);
+	float rz = sqrt(1.-r.y);
+	vec3  rr = vec3(rx*uu + ry*vv + rz*n);
+    return normalize(rr);
+}
+vec3 random_in_unit_sphere(inout float seed) {
+    vec3 h = hash3(seed) * vec3(2.,6.28318530718,1.)-vec3(1,0,0);
+    float phi = h.y;
+    float r = pow(h.z, 1./3.);
+	return r * vec3(sqrt(1.-h.x*h.x)*vec2(sin(phi),cos(phi)),h.x);
+}
+
+// from from: https://learnopengl.com/PBR/Lighting
+vec3 FresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+// from https://www.shadertoy.com/view/tl23Rm
+float FresnelSchlickRoughness(float cosTheta, float F0, float roughness) {
+    return F0 + (max((1. - roughness), F0) - F0) * pow(abs(1. - cosTheta), 5.0);
+}
+
+
+bool RayAABB(const Ray ray, const AABB aabb, float closest_distance) {
     vec3 t1 = (aabb.min_bounds - ray.position) * ray.inverse_direction;
     vec3 t2 = (aabb.max_bounds - ray.position) * ray.inverse_direction;
 
     float tmin = max3(min(t1, t2));
     float tmax = min3(max(t1, t2));
 
-    return tmax > 0.0 && tmin < tmax;
+    return tmax > 0.0 && tmin < tmax && tmin < closest_distance;
 }
 
-float FindIntersection(Ray ray, AABB bounding_box) {
+HitInfo FindIntersection(Ray ray) {
     AABB bounding_box_stack[100];
     uint node_start_stack[100];
     uint stack_size = 0;
 
-    if (RayAABB(ray, bounding_box)) {
+    float closest_distance = INFINITY;
+    uint closest_triangle_start;
+
+    AABB bounding_box = AABB(octree_min_bounds, octree_max_bounds);
+
+    if (RayAABB(ray, bounding_box, closest_distance)) {
         bounding_box_stack[0] = bounding_box;
         node_start_stack[0] = 0;
         stack_size = 1;
     }
 
 
-    float closest_distance = INFINITY;
-    uint closest_triangle_start;
 
     while (stack_size != 0) {
         stack_size--;
@@ -136,18 +343,18 @@ float FindIntersection(Ray ray, AABB bounding_box) {
         uint triangle_count = (node_info >> 16);
 
         for (uint i = 0; i < triangle_count; i++) {
-            uint ind_1 = indecies[triangle_start + 3 * i + 0];
-            uint ind_2 = indecies[triangle_start + 3 * i + 1];
-            uint ind_3 = indecies[triangle_start + 3 * i + 2];
+            uvec4 ind = indecies[triangle_start + i];
+            //uint ind_2 = indecies[triangle_start + i];
+            //uint ind_3 = indecies[triangle_start + i];
 
-            vec3 v1 = vertecies[ind_1].xyz;
-            vec3 v2 = vertecies[ind_2].xyz;
-            vec3 v3 = vertecies[ind_3].xyz;
+            vec3 v1 = vertecies[ind.x].xyz;
+            vec3 v2 = vertecies[ind.y].xyz;
+            vec3 v3 = vertecies[ind.z].xyz;
 
-            float t = RayTriangle(ray.position, ray.direction, v1, v2, v3, 0.000001);
+            float t = RayTriangle(ray.position, ray.direction, v1, v2, v3, 0.000000000000001);
             if (t >= 0.0 && t < closest_distance) {
                 closest_distance = t;
-                closest_triangle_start = triangle_start + 3 * i;
+                closest_triangle_start = triangle_start + i;
             }
         }
 
@@ -162,19 +369,19 @@ float FindIntersection(Ray ray, AABB bounding_box) {
         for (uint i = 0; i < 8; i++) {
             if (bool(node_info & (uint(0x00000100) << i))) {
                 vec3 child_min_bounds = vec3(
-                    bool(i & 1) ? mid_point.x : current_bounding_box.min_bounds.x,
-                    bool(i & 2) ? mid_point.y : current_bounding_box.min_bounds.y,
-                    bool(i & 4) ? mid_point.z : current_bounding_box.min_bounds.z
+                    bool(i & uint(1)) ? mid_point.x : current_bounding_box.min_bounds.x,
+                    bool(i & uint(2)) ? mid_point.y : current_bounding_box.min_bounds.y,
+                    bool(i & uint(4)) ? mid_point.z : current_bounding_box.min_bounds.z
                 );
                 vec3 child_max_bounds = vec3(
-                    bool(i & 1) ? current_bounding_box.max_bounds.x : mid_point.x,
-                    bool(i & 2) ? current_bounding_box.max_bounds.y : mid_point.y,
-                    bool(i & 4) ? current_bounding_box.max_bounds.z : mid_point.z
+                    bool(i & uint(1)) ? current_bounding_box.max_bounds.x : mid_point.x,
+                    bool(i & uint(2)) ? current_bounding_box.max_bounds.y : mid_point.y,
+                    bool(i & uint(4)) ? current_bounding_box.max_bounds.z : mid_point.z
                 );
 
                 AABB child_bounding_box = AABB(child_min_bounds, child_max_bounds);
 
-                if (RayAABB(ray, child_bounding_box)) {
+                if (RayAABB(ray, child_bounding_box, closest_distance)) {
                     //fs_out_col = vec4(
                     //    bool(i & uint(1)) ? 1.0 : 0.2,
                     //    bool(i & uint(2)) ? 1.0 : 0.2,
@@ -194,29 +401,130 @@ float FindIntersection(Ray ray, AABB bounding_box) {
 
 
     if (isinf(closest_distance)) {
-        fs_out_col = texture(skyboxTexture, ray.direction);
+        return HitInfo(false, vec3(0.0), vec3(0.0), 0);
+        //fs_out_col = texture(skyboxTexture, ray.direction);
     } else {
-        uint ind_1 = indecies[closest_triangle_start + 0];
-        uint ind_2 = indecies[closest_triangle_start + 1];
-        uint ind_3 = indecies[closest_triangle_start + 2];
+        uvec4 ind = indecies[closest_triangle_start];
+        //uint ind_2 = indecies[closest_triangle_start + 1];
+        //uint ind_3 = indecies[closest_triangle_start + 2];
 
-        vec3 v1 = vertecies[ind_1].xyz;
-        vec3 v2 = vertecies[ind_2].xyz;
-        vec3 v3 = vertecies[ind_3].xyz;
+        vec3 v1 = vertecies[ind.x].xyz;
+        vec3 v2 = vertecies[ind.y].xyz;
+        vec3 v3 = vertecies[ind.z].xyz;
 
-        vec3 n1 = normals[ind_1].xyz;
-        vec3 n2 = normals[ind_2].xyz;
-        vec3 n3 = normals[ind_3].xyz;
+        vec3 n1 = normals[ind.x].xyz;
+        vec3 n2 = normals[ind.y].xyz;
+        vec3 n3 = normals[ind.z].xyz;
         
-        vec3 p = ray.position + closest_distance * ray.direction;
-        vec3 uvw = Barycentric(p, v1, v2, v3);
+        vec3 position = ray.position + closest_distance * ray.direction;
+        vec3 uvw = Barycentric(position, v1, v2, v3);
         vec3 normal = uvw.x * n1 + uvw.y * n2 + uvw.z * n3;
 
-        fs_out_col = vec4(vec3(normal), 1.0);
+        return HitInfo(true, position, normal, ind.w);
+        //fs_out_col = vec4(ind.w * vec3(normal), 1.0);
         //fs_out_col = texture(skyboxTexture, reflect(ray.direction, normal));
     }
 
-    return 0.0;
+    //return 0.0;
+}
+
+HitInfo FindSphereIntersection(Ray ray) {
+    float closest_distance = INFINITY;
+    uint closest_i;
+
+    for (uint i = 0; i < 84; i++) {
+        float t = RaySphere(ray, spheres[i], closest_distance);
+        if (!isinf(t)) {
+            closest_distance = t;
+            closest_i = i;
+        }
+    }
+
+    if (isinf(closest_distance)) {
+        return HitInfo(false, vec3(0.0), vec3(0.0), 0);
+    } else {
+        vec3 position = ray.position + closest_distance * ray.direction;
+        vec3 normal = normalize(position - spheres[closest_i].center);
+        return HitInfo(true, position, normal, closest_i % NUM_OF_MATERIALS);
+    }
+}
+
+vec4 RayTrace(Ray r, inout float seed) {
+    vec3 color = vec3(1.0);
+    Ray ray = r;
+    for (uint i = 0; i < max_recursion_limit; i++) {
+        //HitInfo hit_info = FindIntersection(ray);
+        HitInfo hit_info = FindSphereIntersection(ray);
+
+        if (hit_info.has_hit) {
+            Material material = materials[hit_info.material_id];
+
+            if (material.type == LAMBERTIAN) {
+                float F = FresnelSchlickRoughness(max(-dot(ray.direction, hit_info.normal), 0.0), 0.04, material.roughness);
+
+                ray.position = hit_info.position + 0.0001 * hit_info.normal;
+                if (hash1(seed) > F) {
+                    color *= material.color;
+                    ray.direction = random_cos_weighted_hemisphere_direction(hit_info.normal, seed);
+                } else {
+                    ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
+                }
+            } else if (material.type == METAL) {
+                ray.position = hit_info.position + 0.0001 * hit_info.normal;
+                ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
+
+                color *= material.color;
+            } else if (material.type == DIELECTRIC) {
+                float refractive_index;
+                float cosine;
+                vec3 outgoing_normal;
+
+                if (dot(ray.direction, hit_info.normal) > 0.0) {
+                    refractive_index = material.refractive_index;
+                    cosine = dot(ray.direction, hit_info.normal);
+                    cosine = sqrt(1.0 - refractive_index * refractive_index * (1.0 - cosine * cosine));
+                    outgoing_normal = -1.0 * hit_info.normal;
+                } else {
+                    refractive_index = 1.0 / material.refractive_index;
+                    cosine = -1.0 * dot(ray.direction, hit_info.normal);
+                    outgoing_normal = hit_info.normal;
+                }
+
+                vec3 modified_direction = ray.direction + material.roughness * random_in_unit_sphere(seed);
+                //vec3 modified_direction = ray.direction;
+                vec3 refracted_direction = normalize(refract(modified_direction, outgoing_normal, refractive_index));
+
+                if (refracted_direction != vec3(0.0)) {
+                    float r = (1.0 - refractive_index) / (1.0 + refractive_index);
+                    float F = FresnelSchlickRoughness(cosine, r * r, material.roughness);
+                    if (hash1(seed) > F) {
+                        ray.position = hit_info.position - 0.0001 * outgoing_normal;
+                        ray.direction = refracted_direction;
+                    } else {
+                        ray.position = hit_info.position + 0.0001 * outgoing_normal;
+                        ray.direction = normalize(reflect(modified_direction, outgoing_normal));
+                    }
+                } else {
+                    // internal reflection
+                    ray.position = hit_info.position - 0.0001 * outgoing_normal;
+                    ray.direction = normalize(reflect(modified_direction, outgoing_normal));
+                }
+
+
+            
+            }
+
+            ray.inverse_direction = 1.0 / ray.direction;
+
+
+        } else {
+            color *= texture(skyboxTexture, ray.direction).xyz;
+            break;
+        }
+    }
+    color = max(vec3(0.0), color - 0.004);
+    color = (color * (6.2 * color + 0.5)) / (color * (6.2 * color + 1.7) + 0.06);
+    return vec4(color, 1.0);
 }
 
 void main() {
@@ -228,51 +536,6 @@ void main() {
 
     Ray ray = Ray(position, ray_dir, (1.0 / ray_dir));
 
-
-    FindIntersection(ray, AABB(octree_min_bounds, octree_max_bounds));
-    return;
-
-
-    float closest_distance = INFINITY;
-
-    vec3 normal;
-    for (int i = 0; i < 968; i++) {
-        //uvec3 ind = indecies[i].xyz;
-
-        uint ind_1 = indecies[3 * i + 0];
-        uint ind_2 = indecies[3 * i + 1];
-        uint ind_3 = indecies[3 * i + 2];
-
-        vec3 v1 = vertecies[ind_1].xyz;
-        vec3 v2 = vertecies[ind_2].xyz;
-        vec3 v3 = vertecies[ind_3].xyz;
-
-        //uint ind_1 = indecies[3 * i + 0];
-        //uint ind_2 = indecies[3 * i + 1];
-        //uint ind_3 = indecies[3 * i + 2];
-
-        //vec3 v1 = vec3(vertecies[3 * ind_1], vertecies[3 * ind_1 + 1], vertecies[3 * ind_1 + 2]);
-        //vec3 v2 = vec3(vertecies[3 * ind_2], vertecies[3 * ind_2 + 1], vertecies[3 * ind_2 + 2]);
-        //vec3 v3 = vec3(vertecies[3 * ind_3], vertecies[3 * ind_3 + 1], vertecies[3 * ind_3 + 2]);
-
-        float t = RayTriangle(ray.position, ray.direction, v1, v2, v3, 0.00000001);
-        if (t >= 0.0 && t < closest_distance) {
-            closest_distance = t;
-
-            vec3 p = ray.position + t * ray.direction;
-            vec3 uvw = Barycentric(p, v1, v2, v3);
-
-            vec3 n1 = normals[ind_1].xyz;
-            vec3 n2 = normals[ind_2].xyz;
-            vec3 n3 = normals[ind_3].xyz;
-
-            normal = uvw.x * n1 + uvw.y * n2 + uvw.z * n3;
-        }
-    }
-
-    if (isinf(closest_distance)) {
-        fs_out_col = texture(skyboxTexture, ray.direction);
-    } else {
-        fs_out_col = texture(skyboxTexture, reflect(ray.direction, normal));
-    }
+    float seed = float(baseHash(floatBitsToUint(projected_position.xy - time)))/float(0xffffffffU);
+    fs_out_col = RayTrace(ray, seed);
 }
