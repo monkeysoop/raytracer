@@ -15,7 +15,7 @@ public:
     ~CameraManipulator();
 
     void SetCamera(Camera* _pCamera);
-    void Update(float _deltaTime);
+    bool Update(float _deltaTime);
 
     inline void SetSpeed(float _speed) { m_speed = _speed; }
     inline float GetSpeed() const noexcept { return m_speed; }
@@ -56,4 +56,6 @@ private:
     bool m_right_pressed = false;
     bool m_up_pressed = false;
     bool m_down_pressed = false;
+
+    glm::vec3 m_prev_eye = glm::vec3{0.0, 0.0, 0.0};
 };

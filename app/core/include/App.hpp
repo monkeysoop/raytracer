@@ -46,7 +46,9 @@ private:
     //Framebuffer m_framebuffer;
     Shader m_ray_tracer_shader;
 
-    Mesh m_mesh;
+    Mesh m_mesh_1;
+    Mesh m_mesh_2;
+    Mesh m_mesh_3;
     Octree m_octree;
 
     Buffer m_vertecies_buffer;
@@ -58,4 +60,5 @@ private:
     GLuint m_empty_vao; 
 
     float m_time_in_seconds;
+    size_t still_frame_counter;
 };

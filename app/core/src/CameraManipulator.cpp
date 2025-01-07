@@ -24,9 +24,9 @@ void CameraManipulator::SetCamera(Camera* _pCamera) {
     m_v = acosf(ToAim.y / m_distance);
 }
 
-void CameraManipulator::Update(float _deltaTime) {
+bool CameraManipulator::Update(float _deltaTime) {
     if (!m_pCamera)
-        return;
+        return false;
 
     // Frissitjuk a kamerát a Model paraméterek alapján.
 
@@ -44,15 +44,28 @@ void CameraManipulator::Update(float _deltaTime) {
     // Az új előre irányt a felfelé és jobbra irányok keresztszorzatából számoljuk ki.
     glm::vec3 forward = glm::cross(up, right);
 
+    float res = false;
+    if (eye.x != m_prev_eye.x || eye.y != m_prev_eye.y || eye.z != m_prev_eye.z) {
+        res = true;
+        m_prev_eye = eye;
+    }
+
     // Az új elmozdulásat a kamera mozgás irányának és sebességének a segítségével számoljuk ki.
-    glm::vec3 deltaPosition = (m_goForward * forward + m_goRight * right + m_goUp * up) * m_speed * _deltaTime;
+    if (m_goForward != 0 || m_goRight != 0 || m_goUp != 0) {
+        glm::vec3 deltaPosition = (m_goForward * forward + m_goRight * right + m_goUp * up) * m_speed * _deltaTime;
 
-    // Az új kamera pozíciót és nézési cél pozíciót beállítjuk.
-    eye += deltaPosition;
-    m_center += deltaPosition;
 
-    // Frissítjük a kamerát az új pozícióval és nézési iránnyal.
+        // Az új kamera pozíciót és nézési cél pozíciót beállítjuk.
+        eye += deltaPosition;
+        m_center += deltaPosition;
+
+        // Frissítjük a kamerát az új pozícióval és nézési iránnyal.
+        res = true;
+    }
+    
     m_pCamera->SetView(eye, m_center, m_pCamera->GetWorldUp());
+    
+    return res;
 }
 
 void CameraManipulator::KeyboardDown(const SDL_KeyboardEvent& key) {
