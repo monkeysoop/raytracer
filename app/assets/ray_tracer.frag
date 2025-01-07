@@ -23,7 +23,7 @@ out vec4 fs_out_col;
 uniform samplerCube skyboxTexture;
 
 uniform mat4 inv_view_proj_mat;
-uniform vec3 position;
+uniform vec3 camera_position;
 uniform float width;
 uniform float height;
 
@@ -532,9 +532,9 @@ void main() {
     ndc_coord.x *= (width / height);
     vec4 projected_position = inv_view_proj_mat * vec4(ndc_coord, -1.0, 1.0);
     projected_position /= projected_position.w;
-    vec3 ray_dir = normalize(projected_position.xyz - position);
+    vec3 ray_dir = normalize(projected_position.xyz - camera_position);
 
-    Ray ray = Ray(position, ray_dir, (1.0 / ray_dir));
+    Ray ray = Ray(camera_position, ray_dir, (1.0 / ray_dir));
 
     float seed = float(baseHash(floatBitsToUint(projected_position.xy - time)))/float(0xffffffffU);
     fs_out_col = RayTrace(ray, seed);
