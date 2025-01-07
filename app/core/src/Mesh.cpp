@@ -8,7 +8,7 @@
 #include <tiny_obj_loader.h>
 
 
-Mesh::Mesh(const std::filesystem::path& filename) {
+Mesh::Mesh(const std::filesystem::path& filename, size_t material_id, glm::mat4 transform) {
     tinyobj::ObjReader reader;
 
     if (!reader.ParseFromFile(filename)) {
@@ -41,7 +41,7 @@ Mesh::Mesh(const std::filesystem::path& filename) {
         GLfloat y = static_cast<GLfloat>(attrib.vertices[i + 1]);
         GLfloat z = static_cast<GLfloat>(attrib.vertices[i + 2]);
 
-        m_vertecies.push_back(glm::vec4{x, y, z, 0.0f});
+        m_vertecies.push_back(transform * glm::vec4{x, y, z, 0.0f});
 
         if (has_normals) {
             GLfloat nx = static_cast<GLfloat>(attrib.normals[i + 0]);
@@ -83,7 +83,11 @@ Mesh::Mesh(const std::filesystem::path& filename) {
                 normal_accumulator[i_3.vertex_index] += triangle_normal;
             }
 
-            m_triangle_indecies.push_back(glm::uvec3(static_cast<GLuint>(i_1.vertex_index), static_cast<GLuint>(i_2.vertex_index), static_cast<GLuint>(i_3.vertex_index)));
+            m_triangles.push_back(glm::uvec4(
+                static_cast<GLuint>(i_1.vertex_index), 
+                static_cast<GLuint>(i_2.vertex_index), 
+                static_cast<GLuint>(i_3.vertex_index), 
+                static_cast<GLuint>(material_id)));
 
             i += 3;
         }
