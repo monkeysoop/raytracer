@@ -84,7 +84,7 @@ void App::Render() {
     glUniform1i(m_ray_tracer_shader.ul("skyboxTexture"), 0);
 
     glUniformMatrix4fv(m_ray_tracer_shader.ul("inv_view_proj_mat"), 1, GL_FALSE, glm::value_ptr(glm::inverse(m_camera.GetViewProj())));
-    glUniform3fv(m_ray_tracer_shader.ul("position"), 1, glm::value_ptr(m_camera.GetEye()));
+    glUniform3fv(m_ray_tracer_shader.ul("camera_position"), 1, glm::value_ptr(m_camera.GetEye()));
     glUniform1f(m_ray_tracer_shader.ul("width"), static_cast<GLfloat>(m_width));
     glUniform1f(m_ray_tracer_shader.ul("height"), static_cast<GLfloat>(m_height));
     glUniform3fv(m_ray_tracer_shader.ul("octree_min_bounds"), 1, glm::value_ptr(m_octree.GetMinBounds()));
