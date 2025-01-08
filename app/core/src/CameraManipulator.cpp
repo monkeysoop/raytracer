@@ -44,28 +44,25 @@ bool CameraManipulator::Update(float _deltaTime) {
     // Az új előre irányt a felfelé és jobbra irányok keresztszorzatából számoljuk ki.
     glm::vec3 forward = glm::cross(up, right);
 
-    float res = false;
-    if (eye.x != m_prev_eye.x || eye.y != m_prev_eye.y || eye.z != m_prev_eye.z) {
-        res = true;
-        m_prev_eye = eye;
-    }
-
     // Az új elmozdulásat a kamera mozgás irányának és sebességének a segítségével számoljuk ki.
-    if (m_goForward != 0 || m_goRight != 0 || m_goUp != 0) {
-        glm::vec3 deltaPosition = (m_goForward * forward + m_goRight * right + m_goUp * up) * m_speed * _deltaTime;
+    glm::vec3 deltaPosition = (m_goForward * forward + m_goRight * right + m_goUp * up) * m_speed * _deltaTime;
 
-
-        // Az új kamera pozíciót és nézési cél pozíciót beállítjuk.
-        eye += deltaPosition;
-        m_center += deltaPosition;
-
+    // Az új kamera pozíciót és nézési cél pozíciót beállítjuk.
+    eye += deltaPosition;
+    m_center += deltaPosition;
+    
+    glm::vec3 world_up = m_pCamera->GetWorldUp();
+    if (eye != m_prev_eye || m_center != m_prev_center || world_up != m_prev_world_up) {
+        m_prev_eye = eye;
+        m_prev_center = m_center ;
+        m_prev_world_up = world_up;
+        
         // Frissítjük a kamerát az új pozícióval és nézési iránnyal.
-        res = true;
+        m_pCamera->SetView(eye, m_center, world_up);
+        return true;
+    } else {
+        return false;
     }
-    
-    m_pCamera->SetView(eye, m_center, m_pCamera->GetWorldUp());
-    
-    return res;
 }
 
 void CameraManipulator::KeyboardDown(const SDL_KeyboardEvent& key) {

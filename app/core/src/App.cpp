@@ -11,7 +11,7 @@ App::App(GLsizei width, GLsizei height) :
     m_height{height}, 
     m_camera{}, 
     m_camera_manipulator{}, 
-    //m_framebuffer{width, height}, 
+    m_framebuffer{width, height}, 
     m_ray_tracer_shader{"assets/ray_tracer.vert", "assets/ray_tracer.frag"},
     m_mesh_1{"assets/suzanne.obj", 0, glm::scale(glm::vec3(1.0, 1.0, 1.0))},
     m_mesh_2{"assets/suzanne.obj", 1, glm::scale(glm::vec3(2.0, 1.0, 1.0))},
@@ -25,7 +25,7 @@ App::App(GLsizei width, GLsizei height) :
     m_node_buffer{static_cast<GLsizeiptr>(m_octree.m_compressed_node_buffer.size() * sizeof(decltype(m_octree.m_compressed_node_buffer)::value_type)), m_octree.m_compressed_node_buffer.data()},
     m_skybox{},
     m_time_in_seconds{0.0f},
-    still_frame_counter{1}
+    m_still_frame_counter{1}
 {
     GLint context_flags;
     glGetIntegerv(GL_CONTEXT_FLAGS, &context_flags);
@@ -40,6 +40,8 @@ App::App(GLsizei width, GLsizei height) :
     glGenVertexArrays(1, &m_empty_vao); 
 
     glEnable(GL_BLEND); 
+    glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+    glDisable(GL_DEPTH_TEST);
     //glEnable(GL_CULL_FACE);
     //glCullFace(GL_BACK);
     //glEnable(GL_DEPTH_TEST);
@@ -60,15 +62,17 @@ void App::Update(float elapsed_time_in_seconds, float delta_time_in_seconds) {
     m_time_in_seconds = elapsed_time_in_seconds;
     bool camera_changed = m_camera_manipulator.Update(delta_time_in_seconds);
     if (camera_changed) {
-        still_frame_counter = 1;
+        m_still_frame_counter = 1;
     }
 }
 
 
 void App::Render() {
-    glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
-    glBlendColor(0.0f, 0.0f, 0.0f, 1.0f / still_frame_counter);  // Set the alpha blending factor
-    still_frame_counter++;
+    m_framebuffer.Bind();
+
+    glEnable(GL_BLEND); 
+    glBlendColor(0.0f, 0.0f, 0.0f, 1.0f / static_cast<float>(m_still_frame_counter));
+    m_still_frame_counter++;
 
     glDisable(GL_DEPTH_TEST);
     m_ray_tracer_shader.Use();
@@ -89,8 +93,9 @@ void App::Render() {
     glUniform1f(m_ray_tracer_shader.ul("height"), static_cast<GLfloat>(m_height));
     glUniform3fv(m_ray_tracer_shader.ul("octree_min_bounds"), 1, glm::value_ptr(m_octree.GetMinBounds()));
     glUniform3fv(m_ray_tracer_shader.ul("octree_max_bounds"), 1, glm::value_ptr(m_octree.GetMaxBounds()));
-    glUniform1ui(m_ray_tracer_shader.ul("max_recursion_limit"), static_cast<GLuint>(10));
+    glUniform1ui(m_ray_tracer_shader.ul("max_recursion_limit"), static_cast<GLuint>(7));
     glUniform1f(m_ray_tracer_shader.ul("time"), static_cast<GLfloat>(m_time_in_seconds));
+    glUniform1f(m_ray_tracer_shader.ul("blur_amount"), static_cast<GLfloat>(0.00001));
 
 
     //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -98,6 +103,12 @@ void App::Render() {
 
     glUseProgram(0);
     glBindVertexArray(0);
+    
+    m_framebuffer.UnBind();
+
+    glDisable(GL_BLEND); 
+
+    m_framebuffer.Blit();
 }
 
 void App::RenderImGui() {
@@ -127,7 +138,7 @@ void App::Resize(GLsizei width, GLsizei height) {
     m_width = width;
     m_height = height;
     glViewport(0, 0, width, height);
-    //m_framebuffer.Resize(width, height);
+    m_framebuffer.Resize(width, height);
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(width));
-    still_frame_counter = 1;
+    m_still_frame_counter = 1;
 }

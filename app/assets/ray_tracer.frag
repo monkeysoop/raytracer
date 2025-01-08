@@ -32,6 +32,7 @@ uniform vec3 octree_max_bounds;
 
 uniform uint max_recursion_limit;
 uniform float time;
+uniform float blur_amount;
 
 struct Material {
     uint type;
@@ -46,11 +47,11 @@ const uint NUM_OF_MATERIALS = 6;
 
 const Material materials[NUM_OF_MATERIALS] = Material[NUM_OF_MATERIALS](
     Material(1, vec3(0.3, 0.5, 0.4), 0.1, 1.5),
-    Material(1, vec3(0.0, 1.0, 0.0), 0.3, 1.5),
-    Material(1, vec3(1.0, 1.0, 0.0), 0.3, 1.5),
-    Material(1, vec3(1.0, 0.0, 0.0), 0.3, 1.5),
+    Material(0, vec3(0.0, 1.0, 0.0), 0.3, 1.5),
+    Material(1, vec3(1.0, 1.0, 0.0), 0.9, 1.5),
+    Material(1, vec3(1.0, 0.0, 0.0), 0.01, 1.5),
     Material(2, vec3(0.0, 1.0, 1.0), 0.3, 1.8),
-    Material(2, vec3(0.0, 1.0, 1.0), 0.01, 1.5)
+    Material(2, vec3(0.0, 1.0, 1.0), 0.0, 1.5)
     //Material(2, vec3(1.0, 0.0, 0.0), 0.9, 0.7)
 );
 
@@ -462,7 +463,7 @@ vec4 RayTrace(Ray r, inout float seed) {
             if (material.type == LAMBERTIAN) {
                 float F = FresnelSchlickRoughness(max(-dot(ray.direction, hit_info.normal), 0.0), 0.04, material.roughness);
 
-                ray.position = hit_info.position + 0.0001 * hit_info.normal;
+                ray.position = hit_info.position + 0.001 * hit_info.normal;
                 if (hash1(seed) > F) {
                     color *= material.color;
                     ray.direction = random_cos_weighted_hemisphere_direction(hit_info.normal, seed);
@@ -470,7 +471,7 @@ vec4 RayTrace(Ray r, inout float seed) {
                     ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
                 }
             } else if (material.type == METAL) {
-                ray.position = hit_info.position + 0.0001 * hit_info.normal;
+                ray.position = hit_info.position + 0.001 * hit_info.normal;
                 ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
 
                 color *= material.color;
@@ -498,15 +499,15 @@ vec4 RayTrace(Ray r, inout float seed) {
                     float r = (1.0 - refractive_index) / (1.0 + refractive_index);
                     float F = FresnelSchlickRoughness(cosine, r * r, material.roughness);
                     if (hash1(seed) > F) {
-                        ray.position = hit_info.position - 0.0001 * outgoing_normal;
+                        ray.position = hit_info.position - 0.001 * outgoing_normal;
                         ray.direction = refracted_direction;
                     } else {
-                        ray.position = hit_info.position + 0.0001 * outgoing_normal;
+                        ray.position = hit_info.position + 0.001 * outgoing_normal;
                         ray.direction = normalize(reflect(modified_direction, outgoing_normal));
                     }
                 } else {
                     // internal reflection
-                    ray.position = hit_info.position - 0.0001 * outgoing_normal;
+                    ray.position = hit_info.position - 0.001 * outgoing_normal;
                     ray.direction = normalize(reflect(modified_direction, outgoing_normal));
                 }
 
@@ -524,7 +525,7 @@ vec4 RayTrace(Ray r, inout float seed) {
     }
     color = max(vec3(0.0), color - 0.004);
     color = (color * (6.2 * color + 0.5)) / (color * (6.2 * color + 1.7) + 0.06);
-    return vec4(color, 1.0);
+    return vec4(color, 0.0);
 }
 
 void main() {
@@ -532,10 +533,14 @@ void main() {
     ndc_coord.x *= (width / height);
     vec4 projected_position = inv_view_proj_mat * vec4(ndc_coord, -1.0, 1.0);
     projected_position /= projected_position.w;
-    vec3 ray_dir = normalize(projected_position.xyz - camera_position);
+
+    //float seed = float(baseHash(floatBitsToUint(projected_position.xy)))/float(0xffffffffU) + time / 1000.0;
+    float seed = float(baseHash(floatBitsToUint(projected_position.xy - time)))/float(0xffffffffU);
+    seed = float(baseHash(floatBitsToUint(vec2(seed, seed))))/float(0xffffffffU);
+    
+    vec3 ray_dir = normalize(projected_position.xyz - (camera_position + blur_amount * random_in_unit_sphere(seed)));
 
     Ray ray = Ray(camera_position, ray_dir, (1.0 / ray_dir));
 
-    float seed = float(baseHash(floatBitsToUint(projected_position.xy - time)))/float(0xffffffffU);
     fs_out_col = RayTrace(ray, seed);
 }

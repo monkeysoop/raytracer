@@ -15,7 +15,7 @@
 #include "Buffer.hpp"
 #include "Camera.hpp"
 #include "CameraManipulator.hpp"
-//#include "Framebuffer.hpp"
+#include "Framebuffer.hpp"
 #include "Mesh.hpp"
 #include "Octree.hpp"
 #include "Shader.hpp"
@@ -43,7 +43,7 @@ private:
 
     Camera m_camera;
     CameraManipulator m_camera_manipulator;
-    //Framebuffer m_framebuffer;
+    Framebuffer m_framebuffer;
     Shader m_ray_tracer_shader;
 
     Mesh m_mesh_1;
@@ -60,5 +60,5 @@ private:
     GLuint m_empty_vao; 
 
     float m_time_in_seconds;
-    size_t still_frame_counter;
+    size_t m_still_frame_counter;
 };

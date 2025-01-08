@@ -58,4 +58,6 @@ private:
     bool m_down_pressed = false;
 
     glm::vec3 m_prev_eye = glm::vec3{0.0, 0.0, 0.0};
+    glm::vec3 m_prev_center = glm::vec3{0.0, 0.0, 0.0};
+    glm::vec3 m_prev_world_up = glm::vec3{0.0, 0.0, 0.0};
 };
