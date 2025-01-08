@@ -18,6 +18,7 @@
 #include "Framebuffer.hpp"
 #include "Mesh.hpp"
 #include "Octree.hpp"
+#include "Portal.hpp"
 #include "Shader.hpp"
 #include "Skybox.hpp"
 
@@ -49,6 +50,7 @@ private:
     Mesh m_mesh_1;
     Mesh m_mesh_2;
     Mesh m_mesh_3;
+
     Octree m_octree;
 
     Buffer m_vertecies_buffer;
@@ -57,8 +59,15 @@ private:
     Buffer m_node_buffer;
 
     Skybox m_skybox;
+
     GLuint m_empty_vao; 
 
     float m_time_in_seconds;
     size_t m_still_frame_counter;
+
+    Portal m_portal_1;
+    Portal m_portal_2;
+
+    float m_portal_width;
+    float m_portal_height;
 };

@@ -25,7 +25,12 @@ App::App(GLsizei width, GLsizei height) :
     m_node_buffer{static_cast<GLsizeiptr>(m_octree.m_compressed_node_buffer.size() * sizeof(decltype(m_octree.m_compressed_node_buffer)::value_type)), m_octree.m_compressed_node_buffer.data()},
     m_skybox{},
     m_time_in_seconds{0.0f},
-    m_still_frame_counter{1}
+    m_still_frame_counter{1},
+
+    m_portal_1{glm::vec3{7.0, 0.0, 1.0}, normalize(glm::vec3{2.0, 0.0, 0.5})},
+    m_portal_2{glm::vec3{7.0, 0.0, 5.0}, normalize(glm::vec3{0.0, 0.0, 1.0})},
+    m_portal_width{2.0},
+    m_portal_height{5.0}
 {
     GLint context_flags;
     glGetIntegerv(GL_CONTEXT_FLAGS, &context_flags);
@@ -96,6 +101,14 @@ void App::Render() {
     glUniform1ui(m_ray_tracer_shader.ul("max_recursion_limit"), static_cast<GLuint>(7));
     glUniform1f(m_ray_tracer_shader.ul("time"), static_cast<GLfloat>(m_time_in_seconds));
     glUniform1f(m_ray_tracer_shader.ul("blur_amount"), static_cast<GLfloat>(0.00001));
+    glUniform3fv(m_ray_tracer_shader.ul("portal_position_1"), 1, glm::value_ptr(m_portal_1.GetPosition()));
+    glUniform3fv(m_ray_tracer_shader.ul("portal_direction_1"), 1, glm::value_ptr(m_portal_1.GetDirection()));
+    glUniform3fv(m_ray_tracer_shader.ul("portal_position_2"), 1, glm::value_ptr(m_portal_2.GetPosition()));
+    glUniform3fv(m_ray_tracer_shader.ul("portal_direction_2"), 1, glm::value_ptr(m_portal_2.GetDirection()));
+    glUniform1f(m_ray_tracer_shader.ul("portal_width"), static_cast<GLfloat>(m_portal_width));
+    glUniform1f(m_ray_tracer_shader.ul("portal_height"), static_cast<GLfloat>(m_portal_height));
+    glUniformMatrix4fv(m_ray_tracer_shader.ul("portal_1_to_2"), 1, GL_FALSE, glm::value_ptr(m_portal_1.GetDifferenceMatrixTo(m_portal_2)));
+    glUniformMatrix4fv(m_ray_tracer_shader.ul("portal_2_to_1"), 1, GL_FALSE, glm::value_ptr(m_portal_2.GetDifferenceMatrixTo(m_portal_1)));
 
 
     //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

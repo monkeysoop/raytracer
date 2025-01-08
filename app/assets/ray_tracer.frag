@@ -34,6 +34,37 @@ uniform uint max_recursion_limit;
 uniform float time;
 uniform float blur_amount;
 
+uniform vec3 portal_position_1;
+uniform vec3 portal_direction_1;
+uniform vec3 portal_position_2;
+uniform vec3 portal_direction_2;
+
+uniform float portal_width;
+uniform float portal_height;
+
+uniform mat4 portal_1_to_2;
+uniform mat4 portal_2_to_1;
+
+
+struct Ray {
+    vec3 position;
+    vec3 direction;
+    vec3 inverse_direction;
+};
+
+struct AABB {
+    vec3 min_bounds;
+    vec3 max_bounds;
+};
+
+struct HitInfo {
+    bool has_hit;
+    vec3 position;
+    vec3 normal;
+    uint material_id;
+    uint portal_id;
+};
+
 struct Material {
     uint type;
     vec3 color;
@@ -41,27 +72,47 @@ struct Material {
     float refractive_index;
 };
 
-//uniform Material materials[6];
-
-const uint NUM_OF_MATERIALS = 6;
-
-const Material materials[NUM_OF_MATERIALS] = Material[NUM_OF_MATERIALS](
-    Material(1, vec3(0.3, 0.5, 0.4), 0.1, 1.5),
-    Material(0, vec3(0.0, 1.0, 0.0), 0.3, 1.5),
-    Material(1, vec3(1.0, 1.0, 0.0), 0.9, 1.5),
-    Material(1, vec3(1.0, 0.0, 0.0), 0.01, 1.5),
-    Material(2, vec3(0.0, 1.0, 1.0), 0.3, 1.8),
-    Material(2, vec3(0.0, 1.0, 1.0), 0.0, 1.5)
-    //Material(2, vec3(1.0, 0.0, 0.0), 0.9, 0.7)
-);
-
 struct Sphere {
-    vec3 center;
+    vec3 position;
     float radius;
 };
 
+struct Box {
+    vec3 position;
+    vec3 sizes;
+};
 
-const Sphere spheres[84] = Sphere[84](
+struct Portal {
+    vec3 position;
+    vec3 normal;
+};
+
+const float INFINITY = 1.0 / 0.0;
+const float PI = 3.1415926535897932384626433832795;
+
+const uint LAMBERTIAN = 0;
+const uint METAL = 1;
+const uint DIELECTRIC = 2;
+
+const uint NUM_OF_MATERIALS = 6;
+
+const uint NUM_OF_SPHERES = 84;
+
+const Material materials[NUM_OF_MATERIALS] = Material[NUM_OF_MATERIALS](
+    Material(METAL, vec3(0.3, 0.5, 0.4), 0.1, 1.5),
+    Material(LAMBERTIAN, vec3(0.0, 1.0, 0.0), 0.3, 1.5),
+    Material(METAL, vec3(1.0, 1.0, 0.0), 0.9, 1.5),
+    Material(METAL, vec3(1.0, 0.0, 0.0), 0.01, 1.5),
+    Material(DIELECTRIC, vec3(0.0, 1.0, 1.0), 0.3, 1.8),
+    Material(DIELECTRIC, vec3(0.0, 1.0, 1.0), 0.0, 1.5)
+);
+
+const uint NO_PORTAL = 0;
+const uint PORTAL_1 = 1;
+const uint PORTAL_2 = 2;
+
+
+const Sphere spheres[NUM_OF_SPHERES] = Sphere[NUM_OF_SPHERES](
     Sphere(vec3( 0.000000, -1000.000000, 0.000000), 1000.000000),
     Sphere(vec3( -7.995381, 0.200000, -7.478668), 0.200000),
     Sphere(vec3( -7.696819, 0.200000, -5.468978), 0.200000),
@@ -148,30 +199,6 @@ const Sphere spheres[84] = Sphere[84](
     Sphere(vec3( 4.000000, 1.000000, 0.000000), 1.000000)
 );
 
-
-struct Ray {
-    vec3 position;
-    vec3 direction;
-    vec3 inverse_direction;
-};
-
-struct AABB {
-    vec3 min_bounds;
-    vec3 max_bounds;
-};
-
-struct HitInfo {
-    bool has_hit;
-    vec3 position;
-    vec3 normal;
-    uint material_id;
-};
-
-const uint LAMBERTIAN = 0;
-const uint METAL = 1;
-const uint DIELECTRIC = 2;
-
-
 float min3(vec3 a) {
     return min(min(a.x, a.y), a.z);
 }
@@ -179,9 +206,6 @@ float min3(vec3 a) {
 float max3(vec3 a) {
     return max(max(a.x, a.y), a.z);
 }
-
-const float INFINITY = 1.0 / 0.0;
-const float PI = 3.1415926535897932384626433832795;
 
 
 
@@ -205,12 +229,14 @@ vec3 Barycentric(vec3 p, vec3 a, vec3 b, vec3 c) {
 }
 
 // from https://www.shadertoy.com/view/MtycDD
-float RaySphere(Ray r, Sphere sphere, float closest_distance) {
-	vec3 oc = r.position - sphere.center;
-    float b = dot(oc, r.direction);
+float RaySphere(Ray ray, Sphere sphere, float closest_distance) {
+	vec3 oc = ray.position - sphere.position;
+    float b = dot(oc, ray.direction);
     float c = dot(oc, oc) - sphere.radius * sphere.radius;
     float discriminant = b * b - c;
-    if (discriminant < 0.0) return INFINITY;
+    if (discriminant < 0.0) {
+        return INFINITY;
+    }
 
 	float s = sqrt(discriminant);
 	float t1 = -b - s;
@@ -225,10 +251,10 @@ float RaySphere(Ray r, Sphere sphere, float closest_distance) {
 }
 
 // from https://github.com/btmxh/glsl-intersect/blob/master/3d/intersection/rayTriangle.glsl
-float RayTriangle(vec3 rayOrigin, vec3 rayDir, vec3 v1, vec3 v2, vec3 v3, float epsilon) {
+float RayTriangle(Ray ray, vec3 v1, vec3 v2, vec3 v3, float epsilon) {
     vec3 e1 = v2 - v1;
     vec3 e2 = v3 - v1;
-    vec3 pvec = cross(rayDir, e2);
+    vec3 pvec = cross(ray.direction, e2);
     float det = dot(e1, pvec);
 
     if (abs(det) < epsilon) {
@@ -236,7 +262,7 @@ float RayTriangle(vec3 rayOrigin, vec3 rayDir, vec3 v1, vec3 v2, vec3 v3, float 
     }
 
     float invDet = 1.0 / det;
-    vec3 tvec = rayOrigin - v1;
+    vec3 tvec = ray.position - v1;
 
     float u = invDet * dot(tvec, pvec);
     if (u < 0.0 || u > 1.0) {
@@ -244,7 +270,7 @@ float RayTriangle(vec3 rayOrigin, vec3 rayDir, vec3 v1, vec3 v2, vec3 v3, float 
     }
 
     vec3 qvec = cross(tvec, e1);
-    float v = invDet * dot(rayDir, qvec);
+    float v = invDet * dot(ray.direction, qvec);
 
     if (v < 0.0 || u + v > 1.0) {
         return -1.0;
@@ -252,6 +278,99 @@ float RayTriangle(vec3 rayOrigin, vec3 rayDir, vec3 v1, vec3 v2, vec3 v3, float 
 
     return dot(e2, qvec) * invDet;
 }
+
+// from https://www.shadertoy.com/view/tl23Rm
+float RayBox(Ray ray, Box box, float closest_distance, out vec3 normal) {
+    vec3 m = sign(ray.direction) / max(abs(ray.direction), 1e-8);
+    vec3 n = m * (ray.position - box.position);
+    vec3 k = abs(m) * box.sizes;
+	
+    vec3 t1 = -n - k;
+    vec3 t2 = -n + k;
+
+	float tN = max(max(t1.x, t1.y), t1.z);
+	float tF = min(min(t2.x, t2.y), t2.z);
+	
+    if (tN > tF || tF <= 0.0) {
+        return INFINITY;
+    } else {
+        if (tN >= 0.0 && tN <= closest_distance) {
+        	normal = -sign(ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
+            return tN;
+        } else if (tF >= 0.0 && tF <= closest_distance) { 
+        	normal = -sign(ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
+            return tF;
+        } else {
+            return INFINITY;
+        }
+    }
+}
+float RayCylinder( in vec3 ro, in vec3 rd, in vec2 distBound, inout vec3 normal, in vec3 pa, in vec3 pb, float ra ) {
+    vec3 ca = pb-pa;
+    vec3 oc = ro-pa;
+
+    float caca = dot(ca,ca);
+    float card = dot(ca,rd);
+    float caoc = dot(ca,oc);
+    
+    float a = caca - card*card;
+    float b = caca*dot( oc, rd) - caoc*card;
+    float c = caca*dot( oc, oc) - caoc*caoc - ra*ra*caca;
+    float h = b*b - a*c;
+    
+    if (h < 0.) return INFINITY;
+    
+    h = sqrt(h);
+    float d = (-b-h)/a;
+
+    float y = caoc + d*card;
+    if (y > 0. && y < caca && d >= distBound.x && d <= distBound.y) {
+        normal = (oc+d*rd-ca*y/caca)/ra;
+        return d;
+    }
+
+    d = ((y < 0. ? 0. : caca) - caoc)/card;
+    
+    if( abs(b+a*d) < h && d >= distBound.x && d <= distBound.y) {
+        normal = normalize(ca*sign(y)/caca);
+        return d;
+    } else {
+        return INFINITY;
+    }
+}
+float RayPortal(Ray ray, Portal portal, float closest_distance) {
+    float d = dot(portal.normal, ray.direction);
+    
+    if (abs(d) <= 0.0001) {
+        return INFINITY;
+    }
+
+    float t = dot((portal.position - ray.position), portal.normal) / d;
+    
+    if (t < 0.0 || t > closest_distance) {
+        return INFINITY;
+    }
+
+    vec3 intersect_point = ray.position + t * ray.direction;
+
+    vec3 plane_right = cross(portal.normal, vec3(0.0, 1.0, 0.0));
+    if (length(plane_right) <= 0.0001) {
+        return INFINITY;
+    }
+    
+    plane_right = normalize(plane_right);
+    vec3 plane_up = normalize(cross(plane_right, portal.normal));
+
+    vec3 c = intersect_point - portal.position;
+
+    if (abs(dot(plane_right, c)) < 0.5 * portal_width && abs(dot(plane_up, c)) < 0.5 * portal_height) {
+        return t;
+    } else {
+        return INFINITY;
+    }
+}
+
+
 
 // from https://www.shadertoy.com/view/Xt3cDn
 uint baseHash(uvec2 p) {
@@ -352,7 +471,7 @@ HitInfo FindIntersection(Ray ray) {
             vec3 v2 = vertecies[ind.y].xyz;
             vec3 v3 = vertecies[ind.z].xyz;
 
-            float t = RayTriangle(ray.position, ray.direction, v1, v2, v3, 0.000000000000001);
+            float t = RayTriangle(ray, v1, v2, v3, 0.000000000000001);
             if (t >= 0.0 && t < closest_distance) {
                 closest_distance = t;
                 closest_triangle_start = triangle_start + i;
@@ -402,7 +521,7 @@ HitInfo FindIntersection(Ray ray) {
 
 
     if (isinf(closest_distance)) {
-        return HitInfo(false, vec3(0.0), vec3(0.0), 0);
+        return HitInfo(false, vec3(0.0), vec3(0.0), 0, NO_PORTAL);
         //fs_out_col = texture(skyboxTexture, ray.direction);
     } else {
         uvec4 ind = indecies[closest_triangle_start];
@@ -421,7 +540,7 @@ HitInfo FindIntersection(Ray ray) {
         vec3 uvw = Barycentric(position, v1, v2, v3);
         vec3 normal = uvw.x * n1 + uvw.y * n2 + uvw.z * n3;
 
-        return HitInfo(true, position, normal, ind.w);
+        return HitInfo(true, position, normal, ind.w, NO_PORTAL);
         //fs_out_col = vec4(ind.w * vec3(normal), 1.0);
         //fs_out_col = texture(skyboxTexture, reflect(ray.direction, normal));
     }
@@ -433,7 +552,7 @@ HitInfo FindSphereIntersection(Ray ray) {
     float closest_distance = INFINITY;
     uint closest_i;
 
-    for (uint i = 0; i < 84; i++) {
+    for (uint i = 0; i < NUM_OF_SPHERES; i++) {
         float t = RaySphere(ray, spheres[i], closest_distance);
         if (!isinf(t)) {
             closest_distance = t;
@@ -441,14 +560,50 @@ HitInfo FindSphereIntersection(Ray ray) {
         }
     }
 
+    float portal_1_t = RayPortal(ray, Portal(portal_position_1, portal_direction_1), closest_distance);
+    float portal_2_t = RayPortal(ray, Portal(portal_position_2, portal_direction_2), closest_distance);
+
+    if (!isinf(portal_1_t) && portal_1_t < portal_2_t) {
+        vec3 position = ray.position + portal_1_t * ray.direction;
+        return HitInfo(true, position, portal_direction_1, 0, PORTAL_1);
+    } else if (!isinf(portal_2_t) && portal_2_t < portal_1_t) {
+        vec3 position = ray.position + portal_2_t * ray.direction;
+        return HitInfo(true, position, portal_direction_2, 0, PORTAL_2);
+    }
+
     if (isinf(closest_distance)) {
-        return HitInfo(false, vec3(0.0), vec3(0.0), 0);
+        return HitInfo(false, vec3(0.0), vec3(0.0), 0, NO_PORTAL);
     } else {
         vec3 position = ray.position + closest_distance * ray.direction;
-        vec3 normal = normalize(position - spheres[closest_i].center);
-        return HitInfo(true, position, normal, closest_i % NUM_OF_MATERIALS);
+        vec3 normal = normalize(position - spheres[closest_i].position);
+        return HitInfo(true, position, normal, closest_i % NUM_OF_MATERIALS, NO_PORTAL);
     }
 }
+
+//HitInfo FindSphereIntersection(Ray ray) {
+//    float closest_distance = INFINITY;
+//    uint closest_i;
+//    vec3 normal;
+//
+//    for (uint i = 0; i < NUM_OF_SPHERES; i++) {
+//        vec3 n;
+//        float t = RayBox(ray, Box(spheres[i].position, vec3(spheres[i].radius)), closest_distance, n);
+//        //float t = RayPortal(ray, Portal(spheres[i].position, normalize(spheres[i].position)), closest_distance);
+//        if (!isinf(t)) {
+//            closest_distance = t;
+//            closest_i = i;
+//            normal = n;
+//        }
+//    }
+//
+//    if (isinf(closest_distance)) {
+//        return HitInfo(false, vec3(0.0), vec3(0.0), 0);
+//    } else {
+//        vec3 position = ray.position + closest_distance * ray.direction;
+//        //vec3 normal = normalize(position - spheres[closest_i].position);
+//        return HitInfo(true, position, normal, closest_i % NUM_OF_MATERIALS);
+//    }
+//}
 
 vec4 RayTrace(Ray r, inout float seed) {
     vec3 color = vec3(1.0);
@@ -458,61 +613,83 @@ vec4 RayTrace(Ray r, inout float seed) {
         HitInfo hit_info = FindSphereIntersection(ray);
 
         if (hit_info.has_hit) {
-            Material material = materials[hit_info.material_id];
-
-            if (material.type == LAMBERTIAN) {
-                float F = FresnelSchlickRoughness(max(-dot(ray.direction, hit_info.normal), 0.0), 0.04, material.roughness);
-
-                ray.position = hit_info.position + 0.001 * hit_info.normal;
-                if (hash1(seed) > F) {
-                    color *= material.color;
-                    ray.direction = random_cos_weighted_hemisphere_direction(hit_info.normal, seed);
+            if (hit_info.portal_id == PORTAL_1) {
+                if (dot(ray.direction, portal_direction_1) < 0.0) {
+                    color *= 0.5;
                 } else {
-                    ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
-                }
-            } else if (material.type == METAL) {
-                ray.position = hit_info.position + 0.001 * hit_info.normal;
-                ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
-
-                color *= material.color;
-            } else if (material.type == DIELECTRIC) {
-                float refractive_index;
-                float cosine;
-                vec3 outgoing_normal;
-
-                if (dot(ray.direction, hit_info.normal) > 0.0) {
-                    refractive_index = material.refractive_index;
-                    cosine = dot(ray.direction, hit_info.normal);
-                    cosine = sqrt(1.0 - refractive_index * refractive_index * (1.0 - cosine * cosine));
-                    outgoing_normal = -1.0 * hit_info.normal;
-                } else {
-                    refractive_index = 1.0 / material.refractive_index;
-                    cosine = -1.0 * dot(ray.direction, hit_info.normal);
-                    outgoing_normal = hit_info.normal;
+                    color *= 0.05;
                 }
 
-                vec3 modified_direction = ray.direction + material.roughness * random_in_unit_sphere(seed);
-                //vec3 modified_direction = ray.direction;
-                vec3 refracted_direction = normalize(refract(modified_direction, outgoing_normal, refractive_index));
+                ray.position = (portal_1_to_2 * vec4((hit_info.position - portal_position_1), 1.0)).xyz + portal_position_2;
+                ray.direction = normalize((portal_1_to_2 * vec4(ray.direction, 0.0)).xyz);
+                ray.position += 0.001 * ray.direction;
+            } else if (hit_info.portal_id == PORTAL_2) {
+                if (dot(ray.direction, portal_direction_2) < 0.0) {
+                    color *= 0.5;
+                } else {
+                    color *= 0.05;
+                }
 
-                if (refracted_direction != vec3(0.0)) {
-                    float r = (1.0 - refractive_index) / (1.0 + refractive_index);
-                    float F = FresnelSchlickRoughness(cosine, r * r, material.roughness);
+                ray.position = (portal_2_to_1 * vec4((hit_info.position - portal_position_2), 1.0)).xyz + portal_position_1;
+                ray.direction = normalize((portal_2_to_1 * vec4(ray.direction, 0.0)).xyz);
+                ray.position += 0.001 * ray.direction;
+            } else if (hit_info.portal_id == NO_PORTAL) {
+                Material material = materials[hit_info.material_id];
+
+                if (material.type == LAMBERTIAN) {
+                    float F = FresnelSchlickRoughness(max(-dot(ray.direction, hit_info.normal), 0.0), 0.04, material.roughness);
+
+                    ray.position = hit_info.position + 0.001 * hit_info.normal;
                     if (hash1(seed) > F) {
-                        ray.position = hit_info.position - 0.001 * outgoing_normal;
-                        ray.direction = refracted_direction;
+                        color *= material.color;
+                        ray.direction = random_cos_weighted_hemisphere_direction(hit_info.normal, seed);
                     } else {
-                        ray.position = hit_info.position + 0.001 * outgoing_normal;
+                        ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
+                    }
+                } else if (material.type == METAL) {
+                    ray.position = hit_info.position + 0.001 * hit_info.normal;
+                    ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
+
+                    color *= material.color;
+                } else if (material.type == DIELECTRIC) {
+                    float refractive_index;
+                    float cosine;
+                    vec3 outgoing_normal;
+
+                    if (dot(ray.direction, hit_info.normal) > 0.0) {
+                        refractive_index = material.refractive_index;
+                        cosine = dot(ray.direction, hit_info.normal);
+                        cosine = sqrt(1.0 - refractive_index * refractive_index * (1.0 - cosine * cosine));
+                        outgoing_normal = -1.0 * hit_info.normal;
+                    } else {
+                        refractive_index = 1.0 / material.refractive_index;
+                        cosine = -1.0 * dot(ray.direction, hit_info.normal);
+                        outgoing_normal = hit_info.normal;
+                    }
+
+                    vec3 modified_direction = ray.direction + material.roughness * random_in_unit_sphere(seed);
+                    //vec3 modified_direction = ray.direction;
+                    vec3 refracted_direction = normalize(refract(modified_direction, outgoing_normal, refractive_index));
+
+                    if (refracted_direction != vec3(0.0)) {
+                        float r = (1.0 - refractive_index) / (1.0 + refractive_index);
+                        float F = FresnelSchlickRoughness(cosine, r * r, material.roughness);
+                        if (hash1(seed) > F) {
+                            ray.position = hit_info.position - 0.001 * outgoing_normal;
+                            ray.direction = refracted_direction;
+                        } else {
+                            ray.position = hit_info.position + 0.001 * outgoing_normal;
+                            ray.direction = normalize(reflect(modified_direction, outgoing_normal));
+                        }
+                    } else {
+                        // internal reflection
+                        ray.position = hit_info.position - 0.001 * outgoing_normal;
                         ray.direction = normalize(reflect(modified_direction, outgoing_normal));
                     }
-                } else {
-                    // internal reflection
-                    ray.position = hit_info.position - 0.001 * outgoing_normal;
-                    ray.direction = normalize(reflect(modified_direction, outgoing_normal));
+
+
+
                 }
-
-
-            
             }
 
             ray.inverse_direction = 1.0 / ray.direction;
