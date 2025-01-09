@@ -12,7 +12,9 @@ public:
     glm::vec3 GetPosition() const;
     glm::vec3 GetDirection() const;
 
-    glm::mat4 GetDifferenceMatrixTo(const Portal& destination_portal);
+    glm::mat4 GetDifferenceMatrixTo(const Portal& destination_portal) const;
+
+    float RayPortal(glm::vec3 ray_position, glm::vec3 ray_direction, float closest_distance, float portal_width, float portal_height) const;
 
 private:
     glm::vec3 m_position;

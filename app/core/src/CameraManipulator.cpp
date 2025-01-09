@@ -24,9 +24,10 @@ void CameraManipulator::SetCamera(Camera* _pCamera) {
     m_v = acosf(ToAim.y / m_distance);
 }
 
-bool CameraManipulator::Update(float _deltaTime) {
-    if (!m_pCamera)
+bool CameraManipulator::Update(float _deltaTime, const Portal& portal_1, const Portal& portal_2, float portal_width, float portal_height) {
+    if (!m_pCamera) {
         return false;
+    }
 
     // Frissitjuk a kamerát a Model paraméterek alapján.
 
@@ -47,9 +48,66 @@ bool CameraManipulator::Update(float _deltaTime) {
     // Az új elmozdulásat a kamera mozgás irányának és sebességének a segítségével számoljuk ki.
     glm::vec3 deltaPosition = (m_goForward * forward + m_goRight * right + m_goUp * up) * m_speed * _deltaTime;
 
-    // Az új kamera pozíciót és nézési cél pozíciót beállítjuk.
-    eye += deltaPosition;
-    m_center += deltaPosition;
+
+    glm::vec3 ray_position = m_prev_eye;
+    glm::vec3 ray_direction = eye + deltaPosition - m_prev_eye;
+    float distance = glm::length(ray_direction);
+
+    bool teleported = false;
+    if (distance != 0.0) {
+        ray_direction = glm::normalize(ray_direction);
+
+        float portal_1_t = portal_1.RayPortal(ray_position, ray_direction, distance, portal_width, portal_height);
+        float portal_2_t = portal_2.RayPortal(ray_position, ray_direction, distance, portal_width, portal_height);
+
+        if (portal_1_t != -1.0 && (portal_1_t < portal_2_t || portal_2_t == -1.0)) {
+            glm::vec4 temp_pos = portal_1.GetDifferenceMatrixTo(portal_2) * glm::vec4{ray_position + portal_1_t * ray_direction - portal_1.GetPosition(), 1.0};
+            ray_position = glm::vec3{temp_pos.x, temp_pos.y, temp_pos.z} + portal_2.GetPosition();
+            
+            glm::vec4 temp_dir = portal_1.GetDifferenceMatrixTo(portal_2) * glm::vec4{ray_direction, 0.0};
+            ray_direction = glm::normalize(glm::vec3{temp_dir.x, temp_dir.y, temp_dir.z});
+            
+            ray_position += (distance - portal_1_t + 0.001f) * ray_direction;
+            
+            glm::vec4 temp_look_dir = portal_1.GetDifferenceMatrixTo(portal_2) * glm::vec4{lookDirection, 0.0};
+            glm::vec3 new_look_dir = glm::normalize(glm::vec3{temp_look_dir.x, temp_look_dir.y, temp_look_dir.z});
+
+            eye = ray_position;
+            m_center = eye + m_distance * new_look_dir;
+            
+            m_u = atan2f(new_look_dir.z, new_look_dir.x);
+            m_v = acosf(new_look_dir.y);
+            
+            teleported = true;
+
+
+        } else if (portal_2_t != -1.0 && (portal_2_t < portal_1_t || portal_1_t == -1.0)) {
+            glm::vec4 temp_pos = portal_2.GetDifferenceMatrixTo(portal_1) * glm::vec4{ray_position + portal_2_t * ray_direction - portal_2.GetPosition(), 1.0};
+            ray_position = glm::vec3{temp_pos.x, temp_pos.y, temp_pos.z} + portal_1.GetPosition();
+            
+            glm::vec4 temp_dir = portal_2.GetDifferenceMatrixTo(portal_1) * glm::vec4{ray_direction, 0.0};
+            ray_direction = glm::normalize(glm::vec3{temp_dir.x, temp_dir.y, temp_dir.z});
+            
+            ray_position += (distance - portal_2_t + 0.001f) * ray_direction;
+            
+            glm::vec4 temp_look_dir = portal_2.GetDifferenceMatrixTo(portal_1) * glm::vec4{lookDirection, 0.0};
+            glm::vec3 new_look_dir = glm::normalize(glm::vec3{temp_look_dir.x, temp_look_dir.y, temp_look_dir.z});
+
+            eye = ray_position;
+            m_center = eye + m_distance * new_look_dir;
+            
+            m_u = atan2f(new_look_dir.z, new_look_dir.x);
+            m_v = acosf(new_look_dir.y);
+            
+            teleported = true;
+        }
+    }
+
+    if (!teleported) {
+        // Az új kamera pozíciót és nézési cél pozíciót beállítjuk.
+        eye += deltaPosition;
+        m_center += deltaPosition;
+    }
     
     glm::vec3 world_up = m_pCamera->GetWorldUp();
     if (eye != m_prev_eye || m_center != m_prev_center || world_up != m_prev_world_up) {

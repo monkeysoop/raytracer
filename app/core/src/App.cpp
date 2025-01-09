@@ -65,7 +65,7 @@ App::~App() {
 
 void App::Update(float elapsed_time_in_seconds, float delta_time_in_seconds) {
     m_time_in_seconds = elapsed_time_in_seconds;
-    bool camera_changed = m_camera_manipulator.Update(delta_time_in_seconds);
+    bool camera_changed = m_camera_manipulator.Update(delta_time_in_seconds, m_portal_1, m_portal_2, m_portal_width, m_portal_height);
     if (camera_changed) {
         m_still_frame_counter = 1;
     }

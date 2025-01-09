@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+#include "Portal.hpp"
+
 class Camera;
 
 struct SDL_KeyboardEvent;
@@ -15,7 +17,7 @@ public:
     ~CameraManipulator();
 
     void SetCamera(Camera* _pCamera);
-    bool Update(float _deltaTime);
+    bool Update(float _deltaTime, const Portal& portal_1, const Portal& portal_2, float portal_width, float portal_height);
 
     inline void SetSpeed(float _speed) { m_speed = _speed; }
     inline float GetSpeed() const noexcept { return m_speed; }
