@@ -6,6 +6,11 @@ Framebuffer::Framebuffer(GLsizei width, GLsizei height)
     : m_width{width}, m_height{height}, m_target_texture{width, height, GL_RGBA32F} {
     glCreateFramebuffers(1, &m_framebuffer_id);
     glNamedFramebufferTexture(m_framebuffer_id, GL_COLOR_ATTACHMENT0, m_target_texture.GetTextureID(), 0);
+
+    glCreateRenderbuffers(1, &m_depthbuffer_id);
+    glNamedRenderbufferStorage(m_depthbuffer_id, GL_DEPTH_COMPONENT24, width, height);
+    glNamedFramebufferRenderbuffer(m_framebuffer_id, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthbuffer_id);
+
     if (glCheckNamedFramebufferStatus(m_framebuffer_id, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         SDL_LogMessage(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR, "Error while creating framebuffer");
     }
@@ -13,6 +18,7 @@ Framebuffer::Framebuffer(GLsizei width, GLsizei height)
 
 Framebuffer::~Framebuffer() {
     glDeleteFramebuffers(1, &m_framebuffer_id);
+    glDeleteRenderbuffers(1, &m_depthbuffer_id);
 }
 
 void Framebuffer::Bind() {
@@ -34,9 +40,15 @@ void Framebuffer::Resize(GLsizei width, GLsizei height) {
     m_target_texture.Resize(width, height);
 
     glDeleteFramebuffers(1, &m_framebuffer_id);
+    glDeleteRenderbuffers(1, &m_depthbuffer_id);
 
     glCreateFramebuffers(1, &m_framebuffer_id);
     glNamedFramebufferTexture(m_framebuffer_id, GL_COLOR_ATTACHMENT0, m_target_texture.GetTextureID(), 0);
+
+    glCreateRenderbuffers(1, &m_depthbuffer_id);
+    glNamedRenderbufferStorage(m_depthbuffer_id, GL_DEPTH_COMPONENT24, width, height);
+    glNamedFramebufferRenderbuffer(m_framebuffer_id, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthbuffer_id);
+
     if (glCheckNamedFramebufferStatus(m_framebuffer_id, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         SDL_LogMessage(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR, "Error while creating framebuffer");
     }

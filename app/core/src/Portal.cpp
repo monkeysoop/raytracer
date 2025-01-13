@@ -13,8 +13,6 @@ glm::vec3 Portal::GetDirection() const {
 }
 
 glm::mat4 Portal::GetDifferenceMatrixTo(const Portal& destination_portal) const {
-    glm::vec3 position_difference = destination_portal.GetPosition() - m_position;
-
     glm::vec3 dest_direction = destination_portal.GetDirection();
 
     float angle = glm::acos(glm::dot(m_direction, dest_direction));

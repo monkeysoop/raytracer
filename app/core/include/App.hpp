@@ -16,12 +16,13 @@
 #include "Camera.hpp"
 #include "CameraManipulator.hpp"
 #include "Framebuffer.hpp"
+#include "GLUtils.hpp"
 #include "Mesh.hpp"
+#include "ObjParser.hpp"
 #include "Octree.hpp"
 #include "Portal.hpp"
 #include "Shader.hpp"
 #include "Skybox.hpp"
-
 
 class App {
 public:
@@ -46,6 +47,7 @@ private:
     CameraManipulator m_camera_manipulator;
     Framebuffer m_framebuffer;
     Shader m_ray_tracer_shader;
+    Shader m_raster_shader;
 
     Mesh m_mesh_1;
     Mesh m_mesh_2;
@@ -70,4 +72,11 @@ private:
 
     float m_portal_width;
     float m_portal_height;
+
+    OGLObject m_Suzanne;
+    GLuint m_metalTextureID;
+
+    glm::vec3 m_lightDir = glm::vec3(-1.0, -2.0, -0.5);
+	glm::vec3 m_La = glm::vec3(0.0, 0.0, 0.0);
+	glm::vec3 m_Ld = glm::vec3(1.0, 1.0, 1.0);
 };

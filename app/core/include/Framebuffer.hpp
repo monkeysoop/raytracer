@@ -19,5 +19,6 @@ private:
     GLsizei m_height;
 
     GLuint m_framebuffer_id;
+    GLuint m_depthbuffer_id;
     Texture2D m_target_texture;
 };

@@ -5,7 +5,7 @@
 
 #include "Shader.hpp"
 
-void compileShaderFromSource(const GLuint loadedShader, std::string_view shaderCode) {
+void CompileShaderFromSource(const GLuint loadedShader, std::string_view shaderCode) {
     // kod hozzarendelese a shader-hez
     const char* sourcePointer = shaderCode.data();
     GLint sourceLength = static_cast<GLint>(shaderCode.length());
@@ -31,7 +31,7 @@ void compileShaderFromSource(const GLuint loadedShader, std::string_view shaderC
         SDL_LogMessage(SDL_LOG_CATEGORY_ERROR, (result) ? SDL_LOG_PRIORITY_WARN : SDL_LOG_PRIORITY_ERROR, "[glLinkProgram] Shader compile error: %s", ErrorMessage.data());
     }
 }
-void loadShader(const GLuint loadedShader, const std::filesystem::path& _fileName) {
+void LoadShader(const GLuint loadedShader, const std::filesystem::path& _fileName) {
     // ha nem sikerult hibauzenet es -1 visszaadasa
     if (loadedShader == 0) {
         SDL_LogMessage(SDL_LOG_CATEGORY_ERROR, SDL_LOG_PRIORITY_ERROR, "Shader needs to be inited before loading %s !", _fileName.c_str());
@@ -56,7 +56,7 @@ void loadShader(const GLuint loadedShader, const std::filesystem::path& _fileNam
 
     shaderStream.close();
 
-    compileShaderFromSource(loadedShader, shaderCode);
+    CompileShaderFromSource(loadedShader, shaderCode);
 }
 
 Shader::Shader(const std::filesystem::path& vs_filename, const std::filesystem::path& fs_filename) {
@@ -73,8 +73,8 @@ Shader::Shader(const std::filesystem::path& vs_filename, const std::filesystem::
         SDL_SetError("Error while initing shaders (glCreateShader)!");
     }
 
-    loadShader(vs_id, vs_filename);
-    loadShader(fs_id, fs_filename);
+    LoadShader(vs_id, vs_filename);
+    LoadShader(fs_id, fs_filename);
 
     // adjuk hozzá a programhoz a shadereket
     glAttachShader(m_program_id, vs_id);

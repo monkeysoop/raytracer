@@ -45,6 +45,9 @@ uniform float portal_height;
 uniform mat4 portal_1_to_2;
 uniform mat4 portal_2_to_1;
 
+uniform float z_near;
+uniform float z_far;
+
 
 struct Ray {
     vec3 position;
@@ -370,6 +373,10 @@ float RayPortal(Ray ray, Portal portal, float closest_distance) {
     }
 }
 
+float ComputeNonLinearDepth(float linear_depth) {
+    return (z_near * z_far - linear_depth * z_far) / (linear_depth * (z_near - z_far));
+}
+
 
 
 // from https://www.shadertoy.com/view/Xt3cDn
@@ -605,12 +612,28 @@ HitInfo FindSphereIntersection(Ray ray) {
 //    }
 //}
 
-vec4 RayTrace(Ray r, inout float seed) {
+float linearize_depth(float d,float zNear,float zFar)
+{
+    return zNear * zFar / (zFar + d * (zNear - zFar));
+}
+
+void RayTrace(Ray r, inout float seed) {
     vec3 color = vec3(1.0);
+    float depth = 1.0;
+    float linear_depth;
     Ray ray = r;
     for (uint i = 0; i < max_recursion_limit; i++) {
         //HitInfo hit_info = FindIntersection(ray);
         HitInfo hit_info = FindSphereIntersection(ray);
+        if (i == 0) {
+            if (hit_info.has_hit) {
+                linear_depth = length(hit_info.position - ray.position);
+                depth = clamp(ComputeNonLinearDepth(length(hit_info.position - ray.position)), 0.0, 1.0);
+            } else {
+                linear_depth = z_far;
+                depth = clamp(ComputeNonLinearDepth(z_far), 0.0, 1.0);
+            }
+        }
 
         if (hit_info.has_hit) {
             if (hit_info.portal_id == PORTAL_1) {
@@ -702,7 +725,9 @@ vec4 RayTrace(Ray r, inout float seed) {
     }
     color = max(vec3(0.0), color - 0.004);
     color = (color * (6.2 * color + 0.5)) / (color * (6.2 * color + 1.7) + 0.06);
-    return vec4(color, 0.0);
+
+    fs_out_col = vec4(color, 0.0);
+    gl_FragDepth = clamp(depth, 0.0, 1.0);
 }
 
 void main() {
@@ -711,7 +736,6 @@ void main() {
     vec4 projected_position = inv_view_proj_mat * vec4(ndc_coord, -1.0, 1.0);
     projected_position /= projected_position.w;
 
-    //float seed = float(baseHash(floatBitsToUint(projected_position.xy)))/float(0xffffffffU) + time / 1000.0;
     float seed = float(baseHash(floatBitsToUint(projected_position.xy - time)))/float(0xffffffffU);
     seed = float(baseHash(floatBitsToUint(vec2(seed, seed))))/float(0xffffffffU);
     
@@ -719,5 +743,5 @@ void main() {
 
     Ray ray = Ray(camera_position, ray_dir, (1.0 / ray_dir));
 
-    fs_out_col = RayTrace(ray, seed);
+    RayTrace(ray, seed);
 }
