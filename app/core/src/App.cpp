@@ -205,6 +205,6 @@ void App::Resize(GLsizei width, GLsizei height) {
     m_height = height;
     glViewport(0, 0, width, height);
     m_framebuffer.Resize(width, height);
-    m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(width));
+    m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
     m_still_frame_counter = 1;
 }

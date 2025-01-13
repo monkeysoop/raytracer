@@ -732,7 +732,6 @@ void RayTrace(Ray r, inout float seed) {
 
 void main() {
     vec2 ndc_coord = vs_out_ndc_coord;
-    ndc_coord.x *= (width / height);
     vec4 projected_position = inv_view_proj_mat * vec4(ndc_coord, -1.0, 1.0);
     projected_position /= projected_position.w;
 
