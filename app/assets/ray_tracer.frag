@@ -568,7 +568,6 @@ HitInfo FindIntersection(Ray ray) {
 
 void RayTrace(Ray r, inout float seed) {
     float depth = 1.0;
-    Ray ray = r;
 
     vec3 final_color = vec3(0.0);
     Ray rays_stack[100];
@@ -627,9 +626,9 @@ void RayTrace(Ray r, inout float seed) {
                 vec3 next_color = current_color;
 
                 if (dot(current_ray.direction, portal_direction_2) < 0.0) {
-                    color *= 0.5;
+                    next_color *= 0.5;
                 } else {
-                    color *= 0.05;
+                    next_color *= 0.05;
                 }
 
                 next_ray.direction = normalize((portal_2_to_1 * vec4(current_ray.direction, 0.0)).xyz);
@@ -749,11 +748,9 @@ void RayTrace(Ray r, inout float seed) {
                     }
                 }
             }
-
-            ray.inverse_direction = 1.0 / ray.direction;
         } else {
             vec3 next_color = current_color;
-            next_color *= texture(skyboxTexture, ray.direction).xyz;
+            next_color *= texture(skyboxTexture, current_ray.direction).xyz;
             final_color += next_color;
         }
     }
