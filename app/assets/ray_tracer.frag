@@ -116,7 +116,7 @@ const uint PORTAL_2 = 2;
 
 
 const Sphere spheres[NUM_OF_SPHERES] = Sphere[NUM_OF_SPHERES](
-    Sphere(vec3( 0.000000, -1000.000000, 0.000000), 1000.000000),
+    Sphere(vec3( 0.000000, -1003.000000, 0.000000), 1000.000000),
     Sphere(vec3( -7.995381, 0.200000, -7.478668), 0.200000),
     Sphere(vec3( -7.696819, 0.200000, -5.468978), 0.200000),
     Sphere(vec3( -7.824804, 0.200000, -3.120637), 0.200000),
@@ -197,9 +197,9 @@ const Sphere spheres[NUM_OF_SPHERES] = Sphere[NUM_OF_SPHERES](
     Sphere(vec3( 8.595298, 0.200000, 4.802001), 0.200000),
     Sphere(vec3( 8.036216, 0.200000, 6.739752), 0.200000),
     Sphere(vec3( 8.256561, 0.200000, 8.129115), 0.200000),
-    Sphere(vec3( 0.000000, 1.000000, 0.000000), 1.000000),
-    Sphere(vec3( -4.000000, 1.000000, 0.000000), 1.000000),
-    Sphere(vec3( 4.000000, 1.000000, 0.000000), 1.000000)
+    Sphere(vec3( 0.000000, 2.000000, 0.000000), 1.000000),
+    Sphere(vec3( -4.000000, 2.000000, 0.000000), 1.000000),
+    Sphere(vec3( 4.000000, 2.000000, 0.000000), 1.000000)
 );
 
 float min3(vec3 a) {
@@ -440,7 +440,7 @@ bool RayAABB(const Ray ray, const AABB aabb, float closest_distance) {
     return tmax > 0.0 && tmin < tmax && tmin < closest_distance;
 }
 
-HitInfo FindIntersection(Ray ray) {
+HitInfo FindAABBIntersection(Ray ray) {
     AABB bounding_box_stack[100];
     uint node_start_stack[100];
     uint stack_size = 0;
@@ -559,6 +559,84 @@ HitInfo FindSphereIntersection(Ray ray) {
     float closest_distance = INFINITY;
     uint closest_i;
 
+    AABB bounding_box_stack[100];
+    uint node_start_stack[100];
+    uint stack_size = 0;
+
+    uint closest_triangle_start;
+    bool triangle_intersect = false;
+
+    AABB bounding_box = AABB(octree_min_bounds, octree_max_bounds);
+
+    if (RayAABB(ray, bounding_box, closest_distance)) {
+        bounding_box_stack[0] = bounding_box;
+        node_start_stack[0] = 0;
+        stack_size = 1;
+    }
+
+    while (stack_size != 0) {
+        stack_size--;
+        AABB current_bounding_box = bounding_box_stack[stack_size];
+        uint current_node_start = node_start_stack[stack_size];
+
+        uint node_info = nodes[current_node_start];
+        uint triangle_start = nodes[current_node_start + 1];
+
+        uint child_count = node_info & uint(0x0000000F);
+        uint triangle_count = (node_info >> 16);
+
+        for (uint i = 0; i < triangle_count; i++) {
+            uvec4 ind = indecies[triangle_start + i];
+            //uint ind_2 = indecies[triangle_start + i];
+            //uint ind_3 = indecies[triangle_start + i];
+
+            vec3 v1 = vertecies[ind.x].xyz;
+            vec3 v2 = vertecies[ind.y].xyz;
+            vec3 v3 = vertecies[ind.z].xyz;
+
+            float t = RayTriangle(ray, v1, v2, v3, 0.000000000000001);
+            if (t >= 0.0 && t < closest_distance) {
+                closest_distance = t;
+                closest_triangle_start = triangle_start + i;
+                triangle_intersect = true;
+            }
+        }
+
+        uint child_pointers[8];
+        for (uint child_index = 0; child_index < child_count; child_index++) {
+            child_pointers[child_index] = nodes[current_node_start + 2 + child_index];
+        }
+
+        uint child_index = 0;
+        vec3 mid_point = (current_bounding_box.max_bounds + current_bounding_box.min_bounds) / 2.0;
+
+        for (uint i = 0; i < 8; i++) {
+            if (bool(node_info & (uint(0x00000100) << i))) {
+                vec3 child_min_bounds = vec3(
+                    bool(i & uint(1)) ? mid_point.x : current_bounding_box.min_bounds.x,
+                    bool(i & uint(2)) ? mid_point.y : current_bounding_box.min_bounds.y,
+                    bool(i & uint(4)) ? mid_point.z : current_bounding_box.min_bounds.z
+                );
+                vec3 child_max_bounds = vec3(
+                    bool(i & uint(1)) ? current_bounding_box.max_bounds.x : mid_point.x,
+                    bool(i & uint(2)) ? current_bounding_box.max_bounds.y : mid_point.y,
+                    bool(i & uint(4)) ? current_bounding_box.max_bounds.z : mid_point.z
+                );
+
+                AABB child_bounding_box = AABB(child_min_bounds, child_max_bounds);
+
+                if (RayAABB(ray, child_bounding_box, closest_distance)) {
+                    uint child_start = child_pointers[child_index];
+
+                    bounding_box_stack[stack_size] = child_bounding_box;
+                    node_start_stack[stack_size] = child_start;
+                    stack_size++;
+                }
+                child_index++;
+            }
+        }
+    }
+
     for (uint i = 0; i < NUM_OF_SPHERES; i++) {
         float t = RaySphere(ray, spheres[i], closest_distance);
         if (!isinf(t)) {
@@ -581,9 +659,27 @@ HitInfo FindSphereIntersection(Ray ray) {
     if (isinf(closest_distance)) {
         return HitInfo(false, vec3(0.0), vec3(0.0), 0, NO_PORTAL);
     } else {
-        vec3 position = ray.position + closest_distance * ray.direction;
-        vec3 normal = normalize(position - spheres[closest_i].position);
-        return HitInfo(true, position, normal, closest_i % NUM_OF_MATERIALS, NO_PORTAL);
+        if (triangle_intersect) {
+            uvec4 ind = indecies[closest_triangle_start];
+
+            vec3 v1 = vertecies[ind.x].xyz;
+            vec3 v2 = vertecies[ind.y].xyz;
+            vec3 v3 = vertecies[ind.z].xyz;
+
+            vec3 n1 = normals[ind.x].xyz;
+            vec3 n2 = normals[ind.y].xyz;
+            vec3 n3 = normals[ind.z].xyz;
+        
+            vec3 position = ray.position + closest_distance * ray.direction;
+            vec3 uvw = Barycentric(position, v1, v2, v3);
+            vec3 normal = uvw.x * n1 + uvw.y * n2 + uvw.z * n3;
+
+            return HitInfo(true, position, normal, ind.w, NO_PORTAL);
+        } else {
+            vec3 position = ray.position + closest_distance * ray.direction;
+            vec3 normal = normalize(position - spheres[closest_i].position);
+            return HitInfo(true, position, normal, closest_i % NUM_OF_MATERIALS, NO_PORTAL);
+        }
     }
 }
 
