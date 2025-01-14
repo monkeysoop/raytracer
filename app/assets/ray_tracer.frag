@@ -285,33 +285,6 @@ float RayTriangle(Ray ray, vec3 v1, vec3 v2, vec3 v3, float epsilon) {
 }
 
 // from https://www.shadertoy.com/view/tl23Rm
-//float RayBox(Ray ray, Box box, float closest_distance, out vec3 normal) {
-//    vec3 m = sign(ray.direction) / max(abs(ray.direction), 1e-8);
-//    vec3 n = m * (ray.position - box.position);
-//    vec3 k = abs(m) * box.sizes;
-//	
-//    vec3 t1 = -n - k;
-//    vec3 t2 = -n + k;
-//
-//	float tN = max(max(t1.x, t1.y), t1.z);
-//	float tF = min(min(t2.x, t2.y), t2.z);
-//	
-//    if (tN > tF || tF <= 0.0) {
-//        return INFINITY;
-//    } else {
-//        if (tN >= 0.0 && tN <= closest_distance) {
-//        	normal = -sign(ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
-//            return tN;
-//        } else if (tF >= 0.0 && tF <= closest_distance) { 
-//        	normal = -sign(ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
-//            return tF;
-//        } else {
-//            return INFINITY;
-//        }
-//    }
-//}
-
-// from https://www.shadertoy.com/view/tl23Rm
 float RayCylinder(Ray ray, vec3 pa, vec3 pb, float ra, float closest_distance, out vec3 normal) {
     vec3 ca = pb - pa;
     vec3 oc = ray.position - pa;
@@ -594,7 +567,6 @@ HitInfo FindIntersection(Ray ray) {
 
 
 void RayTrace(Ray r, inout float seed) {
-    vec3 color = vec3(1.0);
     float depth = 1.0;
     Ray ray = r;
 
@@ -786,105 +758,10 @@ void RayTrace(Ray r, inout float seed) {
         }
     }
 
-    /*for (uint i = 0; i < max_recursion_limit; i++) {
-        HitInfo hit_info = FindIntersection(ray);
+    final_color = max(vec3(0.0), final_color - 0.004);
+    final_color = (final_color * (6.2 * final_color + 0.5)) / (final_color * (6.2 * final_color + 1.7) + 0.06);
 
-        if (i == 0) {
-            if (hit_info.has_hit) {
-                depth = clamp(ComputeNonLinearDepth(length(hit_info.position - ray.position)), 0.0, 1.0);
-            } else {
-                depth = clamp(ComputeNonLinearDepth(z_far), 0.0, 1.0);
-            }
-        }
-
-        if (hit_info.has_hit) {
-            if (hit_info.portal_id == PORTAL_1) {
-                if (dot(ray.direction, portal_direction_1) < 0.0) {
-                    color *= 0.5;
-                } else {
-                    color *= 0.05;
-                }
-
-                ray.position = (portal_1_to_2 * vec4((hit_info.position - portal_position_1), 1.0)).xyz + portal_position_2;
-                ray.direction = normalize((portal_1_to_2 * vec4(ray.direction, 0.0)).xyz);
-                ray.position += 0.001 * ray.direction;
-            } else if (hit_info.portal_id == PORTAL_2) {
-                if (dot(ray.direction, portal_direction_2) < 0.0) {
-                    color *= 0.5;
-                } else {
-                    color *= 0.05;
-                }
-
-                ray.position = (portal_2_to_1 * vec4((hit_info.position - portal_position_2), 1.0)).xyz + portal_position_1;
-                ray.direction = normalize((portal_2_to_1 * vec4(ray.direction, 0.0)).xyz);
-                ray.position += 0.001 * ray.direction;
-            } else if (hit_info.portal_id == NO_PORTAL) {
-                Material material = materials[hit_info.material_id];
-
-                if (material.type == LAMBERTIAN) {
-                    float F = FresnelSchlickRoughness(max(-dot(ray.direction, hit_info.normal), 0.0), 0.04, material.roughness);
-
-                    ray.position = hit_info.position + 0.001 * hit_info.normal;
-                    if (hash1(seed) > F) {
-                        color *= material.color;
-                        ray.direction = random_cos_weighted_hemisphere_direction(hit_info.normal, seed);
-                    } else {
-                        ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
-                    }
-                } else if (material.type == METAL) {
-                    ray.position = hit_info.position + 0.001 * hit_info.normal;
-                    ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
-
-                    color *= material.color;
-                } else if (material.type == DIELECTRIC) {
-                    float refractive_index;
-                    float cosine;
-                    vec3 outgoing_normal;
-
-                    if (dot(ray.direction, hit_info.normal) > 0.0) {
-                        refractive_index = material.refractive_index;
-                        cosine = dot(ray.direction, hit_info.normal);
-                        cosine = sqrt(1.0 - refractive_index * refractive_index * (1.0 - cosine * cosine));
-                        outgoing_normal = -1.0 * hit_info.normal;
-                    } else {
-                        refractive_index = 1.0 / material.refractive_index;
-                        cosine = -1.0 * dot(ray.direction, hit_info.normal);
-                        outgoing_normal = hit_info.normal;
-                    }
-
-                    vec3 modified_direction = ray.direction + material.roughness * random_in_unit_sphere(seed);
-                    vec3 refracted_direction = normalize(refract(modified_direction, outgoing_normal, refractive_index));
-
-                    if (refracted_direction != vec3(0.0)) {
-                        float r = (1.0 - refractive_index) / (1.0 + refractive_index);
-                        float F = FresnelSchlickRoughness(cosine, r * r, material.roughness);
-                        if (hash1(seed) > F) {
-                            ray.position = hit_info.position - 0.001 * outgoing_normal;
-                            ray.direction = refracted_direction;
-                        } else {
-                            ray.position = hit_info.position + 0.001 * outgoing_normal;
-                            ray.direction = normalize(reflect(modified_direction, outgoing_normal));
-                        }
-                    } else {
-                        // internal reflection
-                        ray.position = hit_info.position - 0.001 * outgoing_normal;
-                        ray.direction = normalize(reflect(modified_direction, outgoing_normal));
-                    }
-                }
-            }
-
-            ray.inverse_direction = 1.0 / ray.direction;
-        } else {
-            color *= texture(skyboxTexture, ray.direction).xyz;
-            break;
-        }
-    }*/
-
-    color = final_color;
-    color = max(vec3(0.0), color - 0.004);
-    color = (color * (6.2 * color + 0.5)) / (color * (6.2 * color + 1.7) + 0.06);
-
-    fs_out_col = vec4(color, 0.0);
+    fs_out_col = vec4(final_color, 0.0);
     gl_FragDepth = clamp(depth, 0.0, 1.0);
 }
 
