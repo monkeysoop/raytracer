@@ -80,10 +80,10 @@ struct Sphere {
     float radius;
 };
 
-struct Box {
-    vec3 position;
-    vec3 sizes;
-};
+//struct Box {
+//    vec3 position;
+//    vec3 sizes;
+//};
 
 struct Portal {
     vec3 position;
@@ -113,6 +113,8 @@ const Material materials[NUM_OF_MATERIALS] = Material[NUM_OF_MATERIALS](
 const uint NO_PORTAL = 0;
 const uint PORTAL_1 = 1;
 const uint PORTAL_2 = 2;
+
+const uint NUM_OF_NEW_RAYS = 2;
 
 
 const Sphere spheres[NUM_OF_SPHERES] = Sphere[NUM_OF_SPHERES](
@@ -283,64 +285,69 @@ float RayTriangle(Ray ray, vec3 v1, vec3 v2, vec3 v3, float epsilon) {
 }
 
 // from https://www.shadertoy.com/view/tl23Rm
-float RayBox(Ray ray, Box box, float closest_distance, out vec3 normal) {
-    vec3 m = sign(ray.direction) / max(abs(ray.direction), 1e-8);
-    vec3 n = m * (ray.position - box.position);
-    vec3 k = abs(m) * box.sizes;
-	
-    vec3 t1 = -n - k;
-    vec3 t2 = -n + k;
+//float RayBox(Ray ray, Box box, float closest_distance, out vec3 normal) {
+//    vec3 m = sign(ray.direction) / max(abs(ray.direction), 1e-8);
+//    vec3 n = m * (ray.position - box.position);
+//    vec3 k = abs(m) * box.sizes;
+//	
+//    vec3 t1 = -n - k;
+//    vec3 t2 = -n + k;
+//
+//	float tN = max(max(t1.x, t1.y), t1.z);
+//	float tF = min(min(t2.x, t2.y), t2.z);
+//	
+//    if (tN > tF || tF <= 0.0) {
+//        return INFINITY;
+//    } else {
+//        if (tN >= 0.0 && tN <= closest_distance) {
+//        	normal = -sign(ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
+//            return tN;
+//        } else if (tF >= 0.0 && tF <= closest_distance) { 
+//        	normal = -sign(ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
+//            return tF;
+//        } else {
+//            return INFINITY;
+//        }
+//    }
+//}
 
-	float tN = max(max(t1.x, t1.y), t1.z);
-	float tF = min(min(t2.x, t2.y), t2.z);
-	
-    if (tN > tF || tF <= 0.0) {
+// from https://www.shadertoy.com/view/tl23Rm
+float RayCylinder(Ray ray, vec3 pa, vec3 pb, float ra, float closest_distance, out vec3 normal) {
+    vec3 ca = pb - pa;
+    vec3 oc = ray.position - pa;
+
+    float caca = dot(ca, ca);
+    float card = dot(ca, ray.direction);
+    float caoc = dot(ca, oc);
+    
+    float a = caca - card * card;
+    float b = caca * dot(oc, ray.direction) - caoc * card;
+    float c = caca * dot(oc, oc) - caoc * caoc - ra * ra * caca;
+    float h = b * b - a * c;
+    
+    if (h < 0.0) {
         return INFINITY;
-    } else {
-        if (tN >= 0.0 && tN <= closest_distance) {
-        	normal = -sign(ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
-            return tN;
-        } else if (tF >= 0.0 && tF <= closest_distance) { 
-        	normal = -sign(ray.direction) * step(t1.yzx, t1.xyz) * step(t1.zxy, t1.xyz);
-            return tF;
-        } else {
-            return INFINITY;
-        }
     }
-}
-float RayCylinder( in vec3 ro, in vec3 rd, in vec2 distBound, inout vec3 normal, in vec3 pa, in vec3 pb, float ra ) {
-    vec3 ca = pb-pa;
-    vec3 oc = ro-pa;
-
-    float caca = dot(ca,ca);
-    float card = dot(ca,rd);
-    float caoc = dot(ca,oc);
-    
-    float a = caca - card*card;
-    float b = caca*dot( oc, rd) - caoc*card;
-    float c = caca*dot( oc, oc) - caoc*caoc - ra*ra*caca;
-    float h = b*b - a*c;
-    
-    if (h < 0.) return INFINITY;
     
     h = sqrt(h);
-    float d = (-b-h)/a;
+    float d = (-b - h)/a;
 
-    float y = caoc + d*card;
-    if (y > 0. && y < caca && d >= distBound.x && d <= distBound.y) {
-        normal = (oc+d*rd-ca*y/caca)/ra;
+    float y = caoc + d * card;
+    if (y > 0.0 && y < caca && d >= 0.0 && d <= closest_distance) {
+        normal = (oc + d * ray.direction - ca * y / caca) / ra;
         return d;
     }
 
-    d = ((y < 0. ? 0. : caca) - caoc)/card;
+    d = ((y < 0.0 ? 0.0 : caca) - caoc) / card;
     
-    if( abs(b+a*d) < h && d >= distBound.x && d <= distBound.y) {
-        normal = normalize(ca*sign(y)/caca);
+    if( abs(b + a * d) < h && d >= 0.0 && d <= closest_distance) {
+        normal = normalize(ca * sign(y) / caca);
         return d;
     } else {
         return INFINITY;
     }
 }
+
 float RayPortal(Ray ray, Portal portal, float closest_distance) {
     float d = dot(portal.normal, ray.direction);
     
@@ -385,15 +392,21 @@ uint baseHash(uvec2 p) {
     uint h32 = 1103515245U*((p.x)^(p.y>>3U));
     return h32^(h32 >> 16);
 }
+
+// from https://www.shadertoy.com/view/Xt3cDn
 float hash1(inout float seed) {
     uint n = baseHash(floatBitsToUint(vec2(seed+=.1,seed+=.1)));
     return float(n)/float(0xffffffffU);
 }
+
+// from https://www.shadertoy.com/view/Xt3cDn
 vec2 hash2(inout float seed) {
     uint n = baseHash(floatBitsToUint(vec2(seed+=.1,seed+=.1)));
     uvec2 rz = uvec2(n, n*48271U);
     return vec2(rz.xy & uvec2(0x7fffffffU))/float(0x7fffffff);
 }
+
+// from https://www.shadertoy.com/view/Xt3cDn
 vec3 hash3(inout float seed) {
     uint n = baseHash(floatBitsToUint(vec2(seed+=.1,seed+=.1)));
     uvec3 rz = uvec3(n, n*16807U, n*48271U);
@@ -401,7 +414,7 @@ vec3 hash3(inout float seed) {
 }
 
 // from https://www.shadertoy.com/view/MtycDD
-vec3 random_cos_weighted_hemisphere_direction(const vec3 n, inout float seed) {
+vec3 random_cos_weighted_hemisphere_direction(vec3 n, inout float seed) {
   	vec2 r = hash2(seed);
 	vec3  uu = normalize(cross(n, abs(n.y) > .5 ? vec3(1.,0.,0.) : vec3(0.,1.,0.)));
 	vec3  vv = cross(uu, n);
@@ -412,6 +425,8 @@ vec3 random_cos_weighted_hemisphere_direction(const vec3 n, inout float seed) {
 	vec3  rr = vec3(rx*uu + ry*vv + rz*n);
     return normalize(rr);
 }
+
+// from https://www.shadertoy.com/view/MtycDD
 vec3 random_in_unit_sphere(inout float seed) {
     vec3 h = hash3(seed) * vec3(2.,6.28318530718,1.)-vec3(1,0,0);
     float phi = h.y;
@@ -440,122 +455,7 @@ bool RayAABB(const Ray ray, const AABB aabb, float closest_distance) {
     return tmax > 0.0 && tmin < tmax && tmin < closest_distance;
 }
 
-HitInfo FindAABBIntersection(Ray ray) {
-    AABB bounding_box_stack[100];
-    uint node_start_stack[100];
-    uint stack_size = 0;
-
-    float closest_distance = INFINITY;
-    uint closest_triangle_start;
-
-    AABB bounding_box = AABB(octree_min_bounds, octree_max_bounds);
-
-    if (RayAABB(ray, bounding_box, closest_distance)) {
-        bounding_box_stack[0] = bounding_box;
-        node_start_stack[0] = 0;
-        stack_size = 1;
-    }
-
-
-
-    while (stack_size != 0) {
-        stack_size--;
-        AABB current_bounding_box = bounding_box_stack[stack_size];
-        uint current_node_start = node_start_stack[stack_size];
-
-        uint node_info = nodes[current_node_start];
-        uint triangle_start = nodes[current_node_start + 1];
-
-        uint child_count = node_info & uint(0x0000000F);
-        uint triangle_count = (node_info >> 16);
-
-        for (uint i = 0; i < triangle_count; i++) {
-            uvec4 ind = indecies[triangle_start + i];
-            //uint ind_2 = indecies[triangle_start + i];
-            //uint ind_3 = indecies[triangle_start + i];
-
-            vec3 v1 = vertecies[ind.x].xyz;
-            vec3 v2 = vertecies[ind.y].xyz;
-            vec3 v3 = vertecies[ind.z].xyz;
-
-            float t = RayTriangle(ray, v1, v2, v3, 0.000000000000001);
-            if (t >= 0.0 && t < closest_distance) {
-                closest_distance = t;
-                closest_triangle_start = triangle_start + i;
-            }
-        }
-
-        uint child_pointers[8];
-        for (uint child_index = 0; child_index < child_count; child_index++) {
-            child_pointers[child_index] = nodes[current_node_start + 2 + child_index];
-        }
-
-        uint child_index = 0;
-        vec3 mid_point = (current_bounding_box.max_bounds + current_bounding_box.min_bounds) / 2.0;
-
-        for (uint i = 0; i < 8; i++) {
-            if (bool(node_info & (uint(0x00000100) << i))) {
-                vec3 child_min_bounds = vec3(
-                    bool(i & uint(1)) ? mid_point.x : current_bounding_box.min_bounds.x,
-                    bool(i & uint(2)) ? mid_point.y : current_bounding_box.min_bounds.y,
-                    bool(i & uint(4)) ? mid_point.z : current_bounding_box.min_bounds.z
-                );
-                vec3 child_max_bounds = vec3(
-                    bool(i & uint(1)) ? current_bounding_box.max_bounds.x : mid_point.x,
-                    bool(i & uint(2)) ? current_bounding_box.max_bounds.y : mid_point.y,
-                    bool(i & uint(4)) ? current_bounding_box.max_bounds.z : mid_point.z
-                );
-
-                AABB child_bounding_box = AABB(child_min_bounds, child_max_bounds);
-
-                if (RayAABB(ray, child_bounding_box, closest_distance)) {
-                    //fs_out_col = vec4(
-                    //    bool(i & uint(1)) ? 1.0 : 0.2,
-                    //    bool(i & uint(2)) ? 1.0 : 0.2,
-                    //    bool(i & uint(4)) ? 1.0 : 0.2,
-                    //    0.0
-                    //);
-                    uint child_start = child_pointers[child_index];
-
-                    bounding_box_stack[stack_size] = child_bounding_box;
-                    node_start_stack[stack_size] = child_start;
-                    stack_size++;
-                }
-                child_index++;
-            }
-        }
-    }
-
-
-    if (isinf(closest_distance)) {
-        return HitInfo(false, vec3(0.0), vec3(0.0), 0, NO_PORTAL);
-        //fs_out_col = texture(skyboxTexture, ray.direction);
-    } else {
-        uvec4 ind = indecies[closest_triangle_start];
-        //uint ind_2 = indecies[closest_triangle_start + 1];
-        //uint ind_3 = indecies[closest_triangle_start + 2];
-
-        vec3 v1 = vertecies[ind.x].xyz;
-        vec3 v2 = vertecies[ind.y].xyz;
-        vec3 v3 = vertecies[ind.z].xyz;
-
-        vec3 n1 = normals[ind.x].xyz;
-        vec3 n2 = normals[ind.y].xyz;
-        vec3 n3 = normals[ind.z].xyz;
-        
-        vec3 position = ray.position + closest_distance * ray.direction;
-        vec3 uvw = Barycentric(position, v1, v2, v3);
-        vec3 normal = uvw.x * n1 + uvw.y * n2 + uvw.z * n3;
-
-        return HitInfo(true, position, normal, ind.w, NO_PORTAL);
-        //fs_out_col = vec4(ind.w * vec3(normal), 1.0);
-        //fs_out_col = texture(skyboxTexture, reflect(ray.direction, normal));
-    }
-
-    //return 0.0;
-}
-
-HitInfo FindSphereIntersection(Ray ray) {
+HitInfo FindIntersection(Ray ray) {
     float closest_distance = INFINITY;
     uint closest_i;
 
@@ -565,6 +465,7 @@ HitInfo FindSphereIntersection(Ray ray) {
 
     uint closest_triangle_start;
     bool triangle_intersect = false;
+    bool cylinder_intersect = false;
 
     AABB bounding_box = AABB(octree_min_bounds, octree_max_bounds);
 
@@ -587,8 +488,6 @@ HitInfo FindSphereIntersection(Ray ray) {
 
         for (uint i = 0; i < triangle_count; i++) {
             uvec4 ind = indecies[triangle_start + i];
-            //uint ind_2 = indecies[triangle_start + i];
-            //uint ind_3 = indecies[triangle_start + i];
 
             vec3 v1 = vertecies[ind.x].xyz;
             vec3 v2 = vertecies[ind.y].xyz;
@@ -645,6 +544,13 @@ HitInfo FindSphereIntersection(Ray ray) {
         }
     }
 
+    vec3 cylinder_normal;
+    float cylinder_t = RayCylinder(ray, vec3(2.1, 0.1, -2.0), vec3(1.9, 0.5, -1.9), 0.08, closest_distance, cylinder_normal);
+    if (!isinf(cylinder_t)) {
+        cylinder_intersect = true;
+        closest_distance = cylinder_t;
+    }
+
     float portal_1_t = RayPortal(ray, Portal(portal_position_1, portal_direction_1), closest_distance);
     float portal_2_t = RayPortal(ray, Portal(portal_position_2, portal_direction_2), closest_distance);
 
@@ -659,7 +565,10 @@ HitInfo FindSphereIntersection(Ray ray) {
     if (isinf(closest_distance)) {
         return HitInfo(false, vec3(0.0), vec3(0.0), 0, NO_PORTAL);
     } else {
-        if (triangle_intersect) {
+        if (cylinder_intersect) {
+            vec3 position = ray.position + closest_distance * ray.direction;
+            return HitInfo(true, position, cylinder_normal, 0, NO_PORTAL);
+        } else if (triangle_intersect) {
             uvec4 ind = indecies[closest_triangle_start];
 
             vec3 v1 = vertecies[ind.x].xyz;
@@ -683,50 +592,207 @@ HitInfo FindSphereIntersection(Ray ray) {
     }
 }
 
-//HitInfo FindSphereIntersection(Ray ray) {
-//    float closest_distance = INFINITY;
-//    uint closest_i;
-//    vec3 normal;
-//
-//    for (uint i = 0; i < NUM_OF_SPHERES; i++) {
-//        vec3 n;
-//        float t = RayBox(ray, Box(spheres[i].position, vec3(spheres[i].radius)), closest_distance, n);
-//        //float t = RayPortal(ray, Portal(spheres[i].position, normalize(spheres[i].position)), closest_distance);
-//        if (!isinf(t)) {
-//            closest_distance = t;
-//            closest_i = i;
-//            normal = n;
-//        }
-//    }
-//
-//    if (isinf(closest_distance)) {
-//        return HitInfo(false, vec3(0.0), vec3(0.0), 0);
-//    } else {
-//        vec3 position = ray.position + closest_distance * ray.direction;
-//        //vec3 normal = normalize(position - spheres[closest_i].position);
-//        return HitInfo(true, position, normal, closest_i % NUM_OF_MATERIALS);
-//    }
-//}
-
-float linearize_depth(float d,float zNear,float zFar)
-{
-    return zNear * zFar / (zFar + d * (zNear - zFar));
-}
 
 void RayTrace(Ray r, inout float seed) {
     vec3 color = vec3(1.0);
     float depth = 1.0;
-    float linear_depth;
     Ray ray = r;
-    for (uint i = 0; i < max_recursion_limit; i++) {
-        //HitInfo hit_info = FindIntersection(ray);
-        HitInfo hit_info = FindSphereIntersection(ray);
+
+    vec3 final_color = vec3(0.0);
+    Ray rays_stack[100];
+    uint depths_stack[100];
+    vec3 colors_stack[100];
+    uint stack_size = 0;
+
+    rays_stack[0] = r;
+    depths_stack[0] = 1;
+    colors_stack[0] = vec3(1.0);
+    stack_size++;
+
+    while (stack_size != 0) {
+        stack_size--;
+        Ray current_ray = rays_stack[stack_size];
+        uint current_depth = depths_stack[stack_size];
+        vec3 current_color = colors_stack[stack_size];
+
+        HitInfo hit_info = FindIntersection(current_ray);
+
+        if (current_depth == 1) {
+            if (hit_info.has_hit) {
+                depth = clamp(ComputeNonLinearDepth(length(hit_info.position - current_ray.position)), 0.0, 1.0);
+            } else {
+                depth = clamp(ComputeNonLinearDepth(z_far), 0.0, 1.0);
+            }
+        }
+
+        if (hit_info.has_hit) {
+            if (hit_info.portal_id == PORTAL_1) {
+                Ray next_ray;
+                uint next_depth = current_depth + 1;
+                vec3 next_color = current_color;
+
+                if (dot(current_ray.direction, portal_direction_1) < 0.0) {
+                    next_color *= 0.5;
+                } else {
+                    next_color *= 0.05;
+                }
+
+                next_ray.direction = normalize((portal_1_to_2 * vec4(current_ray.direction, 0.0)).xyz);
+                next_ray.position = (portal_1_to_2 * vec4((hit_info.position - portal_position_1), 1.0)).xyz + portal_position_2 + 0.001 * next_ray.direction;
+                next_ray.inverse_direction = 1.0 / next_ray.direction;
+
+                if (next_depth < max_recursion_limit) {
+                    rays_stack[stack_size] = next_ray;
+                    depths_stack[stack_size] = current_depth + 1;
+                    colors_stack[stack_size] = next_color;
+                    stack_size++;
+                } else {
+                    final_color += next_color;
+                }
+            } else if (hit_info.portal_id == PORTAL_2) {
+                Ray next_ray;
+                uint next_depth = current_depth + 1;
+                vec3 next_color = current_color;
+
+                if (dot(current_ray.direction, portal_direction_2) < 0.0) {
+                    color *= 0.5;
+                } else {
+                    color *= 0.05;
+                }
+
+                next_ray.direction = normalize((portal_2_to_1 * vec4(current_ray.direction, 0.0)).xyz);
+                next_ray.position = (portal_2_to_1 * vec4((hit_info.position - portal_position_2), 1.0)).xyz + portal_position_1 + 0.001 * next_ray.direction;
+                next_ray.inverse_direction = 1.0 / next_ray.direction;
+
+                if (next_depth < max_recursion_limit) {
+                    rays_stack[stack_size] = next_ray;
+                    depths_stack[stack_size] = current_depth + 1;
+                    colors_stack[stack_size] = next_color;
+                    stack_size++;
+                } else {
+                    final_color += next_color;
+                }
+            } else if (hit_info.portal_id == NO_PORTAL) {
+                Material material = materials[hit_info.material_id];
+
+                if (material.type == LAMBERTIAN) {
+                    float F = FresnelSchlickRoughness(max(-dot(current_ray.direction, hit_info.normal), 0.0), 0.04, material.roughness);
+
+                    for (uint i = 0; i < NUM_OF_NEW_RAYS; i++) {
+                        Ray next_ray;
+                        uint next_depth = current_depth + 1;
+                        vec3 next_color = current_color / float(NUM_OF_NEW_RAYS);
+
+                        next_ray.position = hit_info.position + 0.001 * hit_info.normal;
+                        
+                        if (hash1(seed) > F) {
+                            next_color *= material.color;
+                            next_ray.direction = random_cos_weighted_hemisphere_direction(hit_info.normal, seed);
+                        } else {
+                            next_ray.direction = normalize(reflect(current_ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
+                        }
+                        next_ray.inverse_direction = 1.0 / next_ray.direction;
+
+                        if (next_depth < max_recursion_limit) {
+                            rays_stack[stack_size] = next_ray;
+                            depths_stack[stack_size] = current_depth + 1;
+                            colors_stack[stack_size] = next_color;
+                            stack_size++;
+                        } else {
+                            final_color += next_color;
+                        }
+
+                    }
+                } else if (material.type == METAL) {
+                    for (uint i = 0; i < NUM_OF_NEW_RAYS; i++) {
+                        Ray next_ray;
+                        uint next_depth = current_depth + 1;
+                        vec3 next_color = current_color / float(NUM_OF_NEW_RAYS);
+                    
+                        next_ray.position = hit_info.position + 0.001 * hit_info.normal;
+                        next_ray.direction = normalize(reflect(current_ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
+                        next_ray.inverse_direction = 1.0 / next_ray.direction;
+
+                        next_color *= material.color;
+
+                        if (next_depth < max_recursion_limit) {
+                            rays_stack[stack_size] = next_ray;
+                            depths_stack[stack_size] = current_depth + 1;
+                            colors_stack[stack_size] = next_color;
+                            stack_size++;
+                        } else {
+                            final_color += next_color;
+                        }
+                    }
+
+                } else if (material.type == DIELECTRIC) {
+                    float refractive_index;
+                    float cosine;
+                    vec3 outgoing_normal;
+
+                    if (dot(current_ray.direction, hit_info.normal) > 0.0) {
+                        refractive_index = material.refractive_index;
+                        cosine = dot(current_ray.direction, hit_info.normal);
+                        cosine = sqrt(1.0 - refractive_index * refractive_index * (1.0 - cosine * cosine));
+                        outgoing_normal = -1.0 * hit_info.normal;
+                    } else {
+                        refractive_index = 1.0 / material.refractive_index;
+                        cosine = -1.0 * dot(current_ray.direction, hit_info.normal);
+                        outgoing_normal = hit_info.normal;
+                    }
+
+                    for (uint i = 0; i < NUM_OF_NEW_RAYS; i++) {
+                        Ray next_ray;
+                        uint next_depth = current_depth + 1;
+                        vec3 next_color = current_color / float(NUM_OF_NEW_RAYS);
+                        
+                        vec3 modified_direction = current_ray.direction + material.roughness * random_in_unit_sphere(seed);
+                        vec3 refracted_direction = normalize(refract(modified_direction, outgoing_normal, refractive_index));
+                    
+                        if (refracted_direction != vec3(0.0)) {
+                            float r = (1.0 - refractive_index) / (1.0 + refractive_index);
+                            float F = FresnelSchlickRoughness(cosine, r * r, material.roughness);
+                            if (hash1(seed) > F) {
+                                next_ray.position = hit_info.position - 0.001 * outgoing_normal;
+                                next_ray.direction = refracted_direction;
+                            } else {
+                                next_ray.position = hit_info.position + 0.001 * outgoing_normal;
+                                next_ray.direction = normalize(reflect(modified_direction, outgoing_normal));
+                            }
+                        } else {
+                            // internal reflection
+                            next_ray.position = hit_info.position - 0.001 * outgoing_normal;
+                            next_ray.direction = normalize(reflect(modified_direction, outgoing_normal));
+                        }
+                        next_ray.inverse_direction = 1.0 / next_ray.direction;
+
+                        if (next_depth < max_recursion_limit) {
+                            rays_stack[stack_size] = next_ray;
+                            depths_stack[stack_size] = current_depth + 1;
+                            colors_stack[stack_size] = next_color;
+                            stack_size++;
+                        } else {
+                            final_color += next_color;
+                        }
+                    }
+                }
+            }
+
+            ray.inverse_direction = 1.0 / ray.direction;
+        } else {
+            vec3 next_color = current_color;
+            next_color *= texture(skyboxTexture, ray.direction).xyz;
+            final_color += next_color;
+        }
+    }
+
+    /*for (uint i = 0; i < max_recursion_limit; i++) {
+        HitInfo hit_info = FindIntersection(ray);
+
         if (i == 0) {
             if (hit_info.has_hit) {
-                linear_depth = length(hit_info.position - ray.position);
                 depth = clamp(ComputeNonLinearDepth(length(hit_info.position - ray.position)), 0.0, 1.0);
             } else {
-                linear_depth = z_far;
                 depth = clamp(ComputeNonLinearDepth(z_far), 0.0, 1.0);
             }
         }
@@ -787,7 +853,6 @@ void RayTrace(Ray r, inout float seed) {
                     }
 
                     vec3 modified_direction = ray.direction + material.roughness * random_in_unit_sphere(seed);
-                    //vec3 modified_direction = ray.direction;
                     vec3 refracted_direction = normalize(refract(modified_direction, outgoing_normal, refractive_index));
 
                     if (refracted_direction != vec3(0.0)) {
@@ -805,20 +870,17 @@ void RayTrace(Ray r, inout float seed) {
                         ray.position = hit_info.position - 0.001 * outgoing_normal;
                         ray.direction = normalize(reflect(modified_direction, outgoing_normal));
                     }
-
-
-
                 }
             }
 
             ray.inverse_direction = 1.0 / ray.direction;
-
-
         } else {
             color *= texture(skyboxTexture, ray.direction).xyz;
             break;
         }
-    }
+    }*/
+
+    color = final_color;
     color = max(vec3(0.0), color - 0.004);
     color = (color * (6.2 * color + 0.5)) / (color * (6.2 * color + 1.7) + 0.06);
 

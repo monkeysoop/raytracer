@@ -14,7 +14,7 @@ App::App(GLsizei width, GLsizei height) :
     m_framebuffer{width, height}, 
     m_ray_tracer_shader{"assets/ray_tracer.vert", "assets/ray_tracer.frag"},
     m_raster_shader{"assets/Vert_PosNormTex.vert", "assets/Frag_LightingSimple.frag"},
-    m_mesh_1{"assets/xyzrgb_dragon.obj", 3, glm::translate(glm::vec3(5.0, 2.0, 0.0)) * glm::scale(glm::vec3(0.02, 0.02, 0.02))},
+    m_mesh_1{"assets/suzanne.obj", 5, glm::translate(glm::vec3(5.0, 2.0, 0.0)) * glm::scale(glm::vec3(2.0, 2.0, 2.0))},
     m_mesh_2{"assets/suzanne.obj", 1, glm::translate(glm::vec3(20.0, 1.0, 5.0))},
     m_mesh_3{"assets/suzanne.obj", 2, glm::translate(glm::vec3(30.0, 1.0, 5.0))},
     //m_mesh_2{"assets/stanford_bunny.obj", 1},
@@ -123,7 +123,7 @@ void App::Render() {
     glUniform1f(m_ray_tracer_shader.ul("height"), static_cast<GLfloat>(m_height));
     glUniform3fv(m_ray_tracer_shader.ul("octree_min_bounds"), 1, glm::value_ptr(m_octree.GetMinBounds()));
     glUniform3fv(m_ray_tracer_shader.ul("octree_max_bounds"), 1, glm::value_ptr(m_octree.GetMaxBounds()));
-    glUniform1ui(m_ray_tracer_shader.ul("max_recursion_limit"), static_cast<GLuint>(7));
+    glUniform1ui(m_ray_tracer_shader.ul("max_recursion_limit"), static_cast<GLuint>(5));
     glUniform1f(m_ray_tracer_shader.ul("time"), static_cast<GLfloat>(m_time_in_seconds));
     glUniform1f(m_ray_tracer_shader.ul("blur_amount"), static_cast<GLfloat>(0.00001));
     glUniform3fv(m_ray_tracer_shader.ul("portal_position_1"), 1, glm::value_ptr(m_portal_1.GetPosition()));
@@ -164,7 +164,7 @@ void App::Render() {
 			glm::mat4 suzanneWorld = glm::translate(glm::vec3(4.0 * i, 4.0 + 4.0 * j, 0.0));
 			glUniformMatrix4fv(m_raster_shader.ul("world"), 1, GL_FALSE, glm::value_ptr(suzanneWorld));
 			glUniformMatrix4fv(m_raster_shader.ul("worldIT"), 1, GL_FALSE, glm::value_ptr(glm::transpose(glm::inverse(suzanneWorld))));
-			//glDrawElements(GL_TRIANGLES, m_Suzanne.count, GL_UNSIGNED_INT, 0);
+			glDrawElements(GL_TRIANGLES, m_Suzanne.count, GL_UNSIGNED_INT, 0);
 		}
     }
 
