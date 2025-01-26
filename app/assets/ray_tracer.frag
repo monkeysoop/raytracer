@@ -427,14 +427,22 @@ HitInfo FindIntersection(Ray ray) {
     float closest_distance = INFINITY;
     uint closest_i;
 
-    AABB bounding_box_stack[100];
-    uint node_start_stack[100];
+    AABB bounding_box_stack[1000];
+    uint node_start_stack[1000];
     uint stack_size = 0;
 
     uint closest_triangle_start;
     bool triangle_intersect = false;
     bool cylinder_intersect = false;
 
+    for (uint i = 0; i < NUM_OF_SPHERES; i++) {
+        float t = RaySphere(ray, spheres[i], closest_distance);
+        if (!isinf(t)) {
+            closest_distance = t;
+            closest_i = i;
+        }
+    }
+    
     AABB bounding_box = AABB(octree_min_bounds, octree_max_bounds);
 
     if (RayAABB(ray, bounding_box, closest_distance)) {
@@ -504,13 +512,6 @@ HitInfo FindIntersection(Ray ray) {
         }
     }
 
-    for (uint i = 0; i < NUM_OF_SPHERES; i++) {
-        float t = RaySphere(ray, spheres[i], closest_distance);
-        if (!isinf(t)) {
-            closest_distance = t;
-            closest_i = i;
-        }
-    }
 
     vec3 cylinder_normal;
     float cylinder_t = RayCylinder(ray, vec3(2.1, 0.1, -2.0), vec3(1.9, 0.5, -1.9), 0.08, closest_distance, cylinder_normal);
