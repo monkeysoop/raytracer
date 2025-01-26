@@ -80,11 +80,6 @@ struct Sphere {
     float radius;
 };
 
-//struct Box {
-//    vec3 position;
-//    vec3 sizes;
-//};
-
 struct Portal {
     vec3 position;
     vec3 normal;
@@ -114,7 +109,7 @@ const uint NO_PORTAL = 0;
 const uint PORTAL_1 = 1;
 const uint PORTAL_2 = 2;
 
-const uint NUM_OF_NEW_RAYS = 2;
+const uint NUM_OF_NEW_RAYS = 1;
 
 
 const Sphere spheres[NUM_OF_SPHERES] = Sphere[NUM_OF_SPHERES](
@@ -568,198 +563,110 @@ HitInfo FindIntersection(Ray ray) {
 
 void RayTrace(Ray r, inout float seed) {
     float depth = 1.0;
+    vec3 color = vec3(1.0);
 
-    vec3 final_color = vec3(0.0);
-    Ray rays_stack[100];
-    uint depths_stack[100];
-    vec3 colors_stack[100];
-    uint stack_size = 0;
+    Ray ray = r;
 
-    rays_stack[0] = r;
-    depths_stack[0] = 1;
-    colors_stack[0] = vec3(1.0);
-    stack_size++;
+    for (uint i = 0; i < max_recursion_limit; i++) {
+        HitInfo hit_info = FindIntersection(ray);
 
-    while (stack_size != 0) {
-        stack_size--;
-        Ray current_ray = rays_stack[stack_size];
-        uint current_depth = depths_stack[stack_size];
-        vec3 current_color = colors_stack[stack_size];
-
-        HitInfo hit_info = FindIntersection(current_ray);
-
-        if (current_depth == 1) {
+        if (i == 0) {
             if (hit_info.has_hit) {
-                depth = clamp(ComputeNonLinearDepth(length(hit_info.position - current_ray.position)), 0.0, 1.0);
+                depth = clamp(ComputeNonLinearDepth(length(hit_info.position - ray.position)), 0.0, 1.0);
             } else {
                 depth = clamp(ComputeNonLinearDepth(z_far), 0.0, 1.0);
             }
         }
 
-        if (hit_info.has_hit) {
+         if (hit_info.has_hit) {
             if (hit_info.portal_id == PORTAL_1) {
-                Ray next_ray;
-                uint next_depth = current_depth + 1;
-                vec3 next_color = current_color;
-
-                if (dot(current_ray.direction, portal_direction_1) < 0.0) {
-                    next_color *= 0.5;
+                if (dot(ray.direction, portal_direction_1) < 0.0) {
+                    color *= 0.5;
                 } else {
-                    next_color *= 0.05;
+                    color *= 0.05;
                 }
 
-                next_ray.direction = normalize((portal_1_to_2 * vec4(current_ray.direction, 0.0)).xyz);
-                next_ray.position = (portal_1_to_2 * vec4((hit_info.position - portal_position_1), 1.0)).xyz + portal_position_2 + 0.001 * next_ray.direction;
-                next_ray.inverse_direction = 1.0 / next_ray.direction;
-
-                if (next_depth < max_recursion_limit) {
-                    rays_stack[stack_size] = next_ray;
-                    depths_stack[stack_size] = current_depth + 1;
-                    colors_stack[stack_size] = next_color;
-                    stack_size++;
-                } else {
-                    final_color += next_color;
-                }
+                ray.position = (portal_1_to_2 * vec4((hit_info.position - portal_position_1), 1.0)).xyz + portal_position_2;
+                ray.direction = normalize((portal_1_to_2 * vec4(ray.direction, 0.0)).xyz);
+                ray.position += 0.001 * ray.direction;
             } else if (hit_info.portal_id == PORTAL_2) {
-                Ray next_ray;
-                uint next_depth = current_depth + 1;
-                vec3 next_color = current_color;
-
-                if (dot(current_ray.direction, portal_direction_2) < 0.0) {
-                    next_color *= 0.5;
+                if (dot(ray.direction, portal_direction_2) < 0.0) {
+                    color *= 0.5;
                 } else {
-                    next_color *= 0.05;
+                    color *= 0.05;
                 }
 
-                next_ray.direction = normalize((portal_2_to_1 * vec4(current_ray.direction, 0.0)).xyz);
-                next_ray.position = (portal_2_to_1 * vec4((hit_info.position - portal_position_2), 1.0)).xyz + portal_position_1 + 0.001 * next_ray.direction;
-                next_ray.inverse_direction = 1.0 / next_ray.direction;
-
-                if (next_depth < max_recursion_limit) {
-                    rays_stack[stack_size] = next_ray;
-                    depths_stack[stack_size] = current_depth + 1;
-                    colors_stack[stack_size] = next_color;
-                    stack_size++;
-                } else {
-                    final_color += next_color;
-                }
+                ray.position = (portal_2_to_1 * vec4((hit_info.position - portal_position_2), 1.0)).xyz + portal_position_1;
+                ray.direction = normalize((portal_2_to_1 * vec4(ray.direction, 0.0)).xyz);
+                ray.position += 0.001 * ray.direction;
             } else if (hit_info.portal_id == NO_PORTAL) {
                 Material material = materials[hit_info.material_id];
 
                 if (material.type == LAMBERTIAN) {
-                    float F = FresnelSchlickRoughness(max(-dot(current_ray.direction, hit_info.normal), 0.0), 0.04, material.roughness);
+                    float F = FresnelSchlickRoughness(max(-dot(ray.direction, hit_info.normal), 0.0), 0.04, material.roughness);
 
-                    for (uint i = 0; i < NUM_OF_NEW_RAYS; i++) {
-                        Ray next_ray;
-                        uint next_depth = current_depth + 1;
-                        vec3 next_color = current_color / float(NUM_OF_NEW_RAYS);
-
-                        next_ray.position = hit_info.position + 0.001 * hit_info.normal;
-                        
-                        if (hash1(seed) > F) {
-                            next_color *= material.color;
-                            next_ray.direction = random_cos_weighted_hemisphere_direction(hit_info.normal, seed);
-                        } else {
-                            next_ray.direction = normalize(reflect(current_ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
-                        }
-                        next_ray.inverse_direction = 1.0 / next_ray.direction;
-
-                        if (next_depth < max_recursion_limit) {
-                            rays_stack[stack_size] = next_ray;
-                            depths_stack[stack_size] = current_depth + 1;
-                            colors_stack[stack_size] = next_color;
-                            stack_size++;
-                        } else {
-                            final_color += next_color;
-                        }
-
+                    ray.position = hit_info.position + 0.001 * hit_info.normal;
+                    if (hash1(seed) > F) {
+                        color *= material.color;
+                        ray.direction = random_cos_weighted_hemisphere_direction(hit_info.normal, seed);
+                    } else {
+                        ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
                     }
                 } else if (material.type == METAL) {
-                    for (uint i = 0; i < NUM_OF_NEW_RAYS; i++) {
-                        Ray next_ray;
-                        uint next_depth = current_depth + 1;
-                        vec3 next_color = current_color / float(NUM_OF_NEW_RAYS);
-                    
-                        next_ray.position = hit_info.position + 0.001 * hit_info.normal;
-                        next_ray.direction = normalize(reflect(current_ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
-                        next_ray.inverse_direction = 1.0 / next_ray.direction;
+                    ray.position = hit_info.position + 0.001 * hit_info.normal;
+                    ray.direction = normalize(reflect(ray.direction, hit_info.normal) + material.roughness * random_in_unit_sphere(seed));
 
-                        next_color *= material.color;
-
-                        if (next_depth < max_recursion_limit) {
-                            rays_stack[stack_size] = next_ray;
-                            depths_stack[stack_size] = current_depth + 1;
-                            colors_stack[stack_size] = next_color;
-                            stack_size++;
-                        } else {
-                            final_color += next_color;
-                        }
-                    }
-
+                    color *= material.color;
                 } else if (material.type == DIELECTRIC) {
                     float refractive_index;
                     float cosine;
                     vec3 outgoing_normal;
 
-                    if (dot(current_ray.direction, hit_info.normal) > 0.0) {
+                    if (dot(ray.direction, hit_info.normal) > 0.0) {
                         refractive_index = material.refractive_index;
-                        cosine = dot(current_ray.direction, hit_info.normal);
+                        cosine = dot(ray.direction, hit_info.normal);
                         cosine = sqrt(1.0 - refractive_index * refractive_index * (1.0 - cosine * cosine));
                         outgoing_normal = -1.0 * hit_info.normal;
                     } else {
                         refractive_index = 1.0 / material.refractive_index;
-                        cosine = -1.0 * dot(current_ray.direction, hit_info.normal);
+                        cosine = -1.0 * dot(ray.direction, hit_info.normal);
                         outgoing_normal = hit_info.normal;
                     }
 
-                    for (uint i = 0; i < NUM_OF_NEW_RAYS; i++) {
-                        Ray next_ray;
-                        uint next_depth = current_depth + 1;
-                        vec3 next_color = current_color / float(NUM_OF_NEW_RAYS);
-                        
-                        vec3 modified_direction = current_ray.direction + material.roughness * random_in_unit_sphere(seed);
-                        vec3 refracted_direction = normalize(refract(modified_direction, outgoing_normal, refractive_index));
-                    
-                        if (refracted_direction != vec3(0.0)) {
-                            float r = (1.0 - refractive_index) / (1.0 + refractive_index);
-                            float F = FresnelSchlickRoughness(cosine, r * r, material.roughness);
-                            if (hash1(seed) > F) {
-                                next_ray.position = hit_info.position - 0.001 * outgoing_normal;
-                                next_ray.direction = refracted_direction;
-                            } else {
-                                next_ray.position = hit_info.position + 0.001 * outgoing_normal;
-                                next_ray.direction = normalize(reflect(modified_direction, outgoing_normal));
-                            }
-                        } else {
-                            // internal reflection
-                            next_ray.position = hit_info.position - 0.001 * outgoing_normal;
-                            next_ray.direction = normalize(reflect(modified_direction, outgoing_normal));
-                        }
-                        next_ray.inverse_direction = 1.0 / next_ray.direction;
+                    vec3 modified_direction = ray.direction + material.roughness * random_in_unit_sphere(seed);
+                    vec3 refracted_direction = normalize(refract(modified_direction, outgoing_normal, refractive_index));
 
-                        if (next_depth < max_recursion_limit) {
-                            rays_stack[stack_size] = next_ray;
-                            depths_stack[stack_size] = current_depth + 1;
-                            colors_stack[stack_size] = next_color;
-                            stack_size++;
+                    if (refracted_direction != vec3(0.0)) {
+                        float r = (1.0 - refractive_index) / (1.0 + refractive_index);
+                        float F = FresnelSchlickRoughness(cosine, r * r, material.roughness);
+                        if (hash1(seed) > F) {
+                            ray.position = hit_info.position - 0.001 * outgoing_normal;
+                            ray.direction = refracted_direction;
                         } else {
-                            final_color += next_color;
+                            ray.position = hit_info.position + 0.001 * outgoing_normal;
+                            ray.direction = normalize(reflect(modified_direction, outgoing_normal));
                         }
+                    } else {
+                        // internal reflection
+                        ray.position = hit_info.position - 0.001 * outgoing_normal;
+                        ray.direction = normalize(reflect(modified_direction, outgoing_normal));
                     }
                 }
             }
+
+            ray.inverse_direction = 1.0 / ray.direction;
+
         } else {
-            vec3 next_color = current_color;
-            next_color *= texture(skyboxTexture, current_ray.direction).xyz;
-            final_color += next_color;
+            color *= texture(skyboxTexture, ray.direction).xyz;
+            break;
         }
     }
 
-    final_color = max(vec3(0.0), final_color - 0.004);
-    final_color = (final_color * (6.2 * final_color + 0.5)) / (final_color * (6.2 * final_color + 1.7) + 0.06);
+    color = max(vec3(0.0), color - 0.004);
+    color = (color * (6.2 * color + 0.5)) / (color * (6.2 * color + 1.7) + 0.06);
 
-    fs_out_col = vec4(final_color, 0.0);
-    gl_FragDepth = clamp(depth, 0.0, 1.0);
+    fs_out_col = vec4(color, 0.0);
+    gl_FragDepth = depth;
 }
 
 void main() {
