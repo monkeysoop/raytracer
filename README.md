@@ -16,6 +16,10 @@ pip install conan meson
 ```
 
 ## Screenshots:
-![screenshot_1](screenshots/screenshot_1.png)
-![screenshot_2](screenshots/screenshot_2.png)
-![screenshot_3](screenshots/screenshot_3.png)
+![screenshot1](screenshots/screenshot1.png)
+![screenshot2](screenshots/screenshot2.png)
+![screenshot3](screenshots/screenshot3.png)
+![screenshot4](screenshots/screenshot4.png)
+![screenshot5](screenshots/screenshot5.png)
+![screenshot6](screenshots/screenshot6.png)
+![screenshot7](screenshots/screenshot7.png)

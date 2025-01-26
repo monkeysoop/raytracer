@@ -92,12 +92,13 @@ const uint LAMBERTIAN = 0;
 const uint METAL = 1;
 const uint DIELECTRIC = 2;
 
-const uint NUM_OF_MATERIALS = 6;
+const uint NUM_OF_MATERIALS = 7;
 
 const uint NUM_OF_SPHERES = 84;
 
 const Material materials[NUM_OF_MATERIALS] = Material[NUM_OF_MATERIALS](
     Material(METAL, vec3(0.3, 0.5, 0.4), 0.1, 1.5),
+    Material(METAL, vec3(1.0, 0.71, 0.29), 0.02, 1.5),
     Material(LAMBERTIAN, vec3(0.0, 1.0, 0.0), 0.3, 1.5),
     Material(METAL, vec3(1.0, 1.0, 0.0), 0.9, 1.5),
     Material(METAL, vec3(1.0, 0.0, 0.0), 0.01, 1.5),
@@ -442,7 +443,7 @@ HitInfo FindIntersection(Ray ray) {
             closest_i = i;
         }
     }
-    
+
     AABB bounding_box = AABB(octree_min_bounds, octree_max_bounds);
 
     if (RayAABB(ray, bounding_box, closest_distance)) {
